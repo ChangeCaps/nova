@@ -1,0 +1,17 @@
+[package]
+name = "nova"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[workspace]
+members = ["crates/*"]
+
+[dependencies]
+nova-core = { path = "crates/nova-core" }
+nova-wgpu = { path = "crates/nova-wgpu" }
+
+[dev-dependencies]
+nova-engine = { path = "crates/nova-engine" }
+nova-wgpu = { path = "crates/nova-wgpu" }
