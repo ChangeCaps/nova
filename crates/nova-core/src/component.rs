@@ -6,19 +6,51 @@ use std::{
 
 use crate::{node::Node, world::World, Read, Write};
 
+pub trait AsAny {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+    fn type_id(&self) -> TypeId;
+}
+
+impl<T: Any> AsAny for T {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn type_id(&self) -> TypeId {
+        TypeId::of::<Self>()
+    }
+}
+
 #[allow(unused)]
-pub trait Component: 'static {
+pub trait Component: AsAny + Send + Sync + 'static {
     #[inline]
     fn init(&mut self, node: &Node, world: &World) {}
 
     #[inline]
-    fn update(&mut self, node: &Node, world: &World) {}
+    fn pre_update(&mut self, node: &Node, world: &World) {
+        node.mark_no_pre_update(AsAny::type_id(self));
+    }
+
+    #[inline]
+    fn update(&mut self, node: &Node, world: &World) {
+        node.mark_no_update(AsAny::type_id(self));
+    }
+
+    #[inline]
+    fn post_update(&mut self, node: &Node, world: &World) {
+        node.mark_no_post_update(AsAny::type_id(self));
+    }
 }
 
 /// A collection of [`Component`]s.
 #[derive(Default)]
 pub struct Components {
-    components: BTreeMap<TypeId, RwLock<Box<dyn Component>>>,
+    pub(crate) components: BTreeMap<TypeId, RwLock<Box<dyn Component>>>,
 }
 
 impl Components {

@@ -1,21 +1,19 @@
+use std::any::Any;
+
 use crate::{
     bind_group::BindGroupLayoutDescriptor,
     buffer::Buffer,
     command_encoder::CommandEncoder,
     pipeline::{ShaderModule, ShaderModuleDescriptor},
-    texture::{SwapChainError, SwapChainFrame, Texture},
-    BindGroup, BindGroupDescriptor, BindGroupLayout, PipelineLayout, PipelineLayoutDescriptor,
-    RenderPipeline, RenderPipelineDescriptor,
+    texture::Texture,
+    BindGroup, BindGroupDescriptor, BindGroupLayout, BufferInitDescriptor, PipelineLayout,
+    PipelineLayoutDescriptor, RenderPipeline, RenderPipelineDescriptor,
 };
 
 pub trait Instance {
-    fn swapchain_format(&self) -> wgpu_types::TextureFormat;
-
-    fn swapchain_size(&self) -> (u32, u32);
-
-    fn recreate(&mut self, width: u32, height: u32);
-
     fn create_buffer(&self, desc: &wgpu_types::BufferDescriptor<Option<&str>>) -> Buffer;
+
+    fn create_buffer_init(&self, desc: &BufferInitDescriptor) -> Buffer;
 
     fn create_texture(&self, desc: &wgpu_types::TextureDescriptor<Option<&str>>) -> Texture;
 
@@ -36,7 +34,7 @@ pub trait Instance {
 
     fn submit(&self, command_encoder: CommandEncoder);
 
-    fn get_current_frame(&self) -> Result<SwapChainFrame, SwapChainError>;
-
     fn write_buffer(&self, buffer: &Buffer, offset: u64, data: &[u8]);
+
+    fn any(&self) -> &dyn Any;
 }

@@ -1,12 +1,18 @@
 use nova_core::world::World;
-use nova_wgpu::{gpu_system::GpuSystem, instance::Instance, wgpu_impl::WgpuInstance};
+use nova_render::render_system::RenderSystem;
+use nova_wgpu::{
+    gpu_system::GpuSystem,
+    instance::Instance,
+    wgpu_impl::{WgpuInstance, WgpuSwapChain},
+    SwapChain,
+};
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
 
-pub async fn init_wgpu(window: &Window) -> impl Instance {
+pub async fn init_wgpu(window: &Window) -> (impl Instance, impl SwapChain) {
     let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
     let surface = unsafe { instance.create_surface(window) };
     let adapter = instance
@@ -39,7 +45,9 @@ pub async fn init_wgpu(window: &Window) -> impl Instance {
         present_mode: wgpu::PresentMode::Fifo,
     };
 
-    WgpuInstance::new(device, queue, surface, desc)
+    let sc = WgpuSwapChain::new(&device, surface, desc);
+
+    (WgpuInstance::new(device, queue), sc)
 }
 
 pub struct App {}
@@ -56,6 +64,7 @@ impl App {
             .with_module_level("gfx", log::LevelFilter::Error)
             .with_module_level("wgpu", log::LevelFilter::Error)
             .with_module_level("winit", log::LevelFilter::Error)
+            .with_module_level("naga", log::LevelFilter::Error)
             .init()
             .unwrap();
 
@@ -63,9 +72,12 @@ impl App {
         let window_builder = WindowBuilder::new();
         let window = window_builder.build(&event_loop).unwrap();
 
-        let instance = pollster::block_on(init_wgpu(&window));
+        let (instance, sc) = pollster::block_on(init_wgpu(&window));
 
-        world.insert_system(GpuSystem::new(instance));
+        world.insert_system(GpuSystem::new(instance, sc));
+        world.insert_system(RenderSystem::default());
+        world.dequeue();
+
         world.init();
 
         event_loop.run(move |event, _, control_flow| match event {
@@ -73,28 +85,36 @@ impl App {
                 window.request_redraw();
             }
             Event::RedrawRequested(_) => {
+                world.pre_update();
                 world.update();
+                world.post_update();
             }
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => {
                     *control_flow = ControlFlow::Exit;
                 }
                 WindowEvent::Resized(size) => {
-                    world
-                        .system_mut::<GpuSystem>()
-                        .unwrap()
-                        .instance
-                        .recreate(size.width, size.height);
+                    let mut gpu_system = world.system_mut::<GpuSystem>().unwrap();
+
+                    let GpuSystem {
+                        instance,
+                        swapchain,
+                    } = gpu_system.as_mut();
+
+                    swapchain.recreate(instance.as_ref(), size.width, size.height);
                 }
                 WindowEvent::ScaleFactorChanged {
                     new_inner_size: size,
                     ..
                 } => {
-                    world
-                        .system_mut::<GpuSystem>()
-                        .unwrap()
-                        .instance
-                        .recreate(size.width, size.height);
+                    let mut gpu_system = world.system_mut::<GpuSystem>().unwrap();
+
+                    let GpuSystem {
+                        instance,
+                        swapchain,
+                    } = gpu_system.as_mut();
+
+                    swapchain.recreate(instance.as_ref(), size.width, size.height);
                 }
                 _ => {}
             },

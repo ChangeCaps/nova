@@ -1,5 +1,5 @@
 [package]
-name = "nova"
+name = "nova-game"
 version = "0.1.0"
 edition = "2018"
 
@@ -9,9 +9,14 @@ edition = "2018"
 members = ["crates/*"]
 
 [dependencies]
+nova-assets = { path = "crates/nova-assets" } 
 nova-core = { path = "crates/nova-core" }
 nova-wgpu = { path = "crates/nova-wgpu" }
+nova-derive = { path = "crates/nova-derive" }
+nova-render = { path = "crates/nova-render" }
+nova-transform = { path = "crates/nova-transform" }
+glam = { version = "0.17.3", features = ["bytemuck"] }
 
 [dev-dependencies]
 nova-engine = { path = "crates/nova-engine" }
-nova-wgpu = { path = "crates/nova-wgpu" }
+nova-3d = { path = "crates/nova-3d" }

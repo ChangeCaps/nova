@@ -1,4 +1,4 @@
-use std::{any::Any, num::NonZeroU64};
+use std::{any::Any, num::NonZeroU64, sync::Arc};
 
 use crate::{Buffer, TextureView};
 
@@ -7,7 +7,7 @@ pub struct BindGroupLayoutDescriptor<'a> {
     pub entries: &'a [wgpu_types::BindGroupLayoutEntry],
 }
 
-pub struct BindGroupLayout(pub(crate) Box<dyn Any>);
+pub struct BindGroupLayout(pub(crate) Box<dyn Any + Send + Sync>);
 
 pub struct BufferBinding<'a> {
     pub buffer: &'a Buffer,
@@ -33,4 +33,5 @@ pub struct BindGroupDescriptor<'a> {
     pub entries: &'a [BindGroupEntry<'a>],
 }
 
-pub struct BindGroup(pub(crate) Box<dyn Any>);
+#[derive(Clone)]
+pub struct BindGroup(pub(crate) Arc<dyn Any + Send + Sync>);

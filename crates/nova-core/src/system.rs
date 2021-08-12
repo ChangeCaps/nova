@@ -4,19 +4,28 @@ use std::{
     sync::RwLock,
 };
 
+use crossbeam::queue::SegQueue;
+
 use crate::{world::World, Read, Write};
 
 #[allow(unused)]
-pub trait System: 'static {
+pub trait System: Send + Sync + 'static {
     #[inline]
-    fn init(&self, world: &World) {}
+    fn init(&mut self, world: &World) {}
 
     #[inline]
-    fn update(&self, world: &World) {}
+    fn pre_update(&mut self, world: &World) {}
+
+    #[inline]
+    fn update(&mut self, world: &World) {}
+
+    #[inline]
+    fn post_update(&mut self, world: &World) {}
 }
 
 #[derive(Default)]
 pub struct Systems {
+    queue: SegQueue<(TypeId, Box<dyn System>)>,
     systems: BTreeMap<TypeId, RwLock<Box<dyn System>>>,
 }
 
@@ -27,9 +36,13 @@ impl Systems {
     }
 
     #[inline]
-    pub fn insert<T: System>(&mut self, system: T) {
-        self.systems
-            .insert(system.type_id(), RwLock::new(Box::new(system)));
+    pub fn insert<T: System>(&self, system: T) {
+        self.queue.push((system.type_id(), Box::new(system)));
+    }
+
+    #[inline]
+    pub fn contains<T: System>(&self) -> bool {
+        self.systems.contains_key(&TypeId::of::<T>())
     }
 
     #[inline]
@@ -76,5 +89,13 @@ impl Systems {
         self.systems
             .iter()
             .filter_map(|(_, lock)| lock.write().ok())
+    }
+
+    #[inline]
+    pub fn dequeue(&mut self) {
+        for _ in 0..self.queue.len() {
+            let (id, system) = self.queue.pop().unwrap();
+            self.systems.insert(id, system.into());
+        }
     }
 }

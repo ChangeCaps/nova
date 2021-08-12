@@ -1,28 +1,47 @@
-use std::{any::{Any, TypeId}};
+use std::{
+    any::{Any, TypeId},
+    ops::Bound,
+    sync::Arc,
+};
 
-use crate::{*, buffer::{BufferSlice, BufferSliceTrait, BufferTrait}, command_encoder::CommandEncoderTrait, render_pass::RenderPassTrait, texture::{SwapChainTextureTrait, TextureTrait}};
+use wgpu::util::DeviceExt;
+
+use crate::{
+    buffer::{BufferSlice, BufferSliceTrait, BufferTrait},
+    command_encoder::CommandEncoderTrait,
+    render_pass::RenderPassTrait,
+    texture::{SwapChainTextureTrait, TextureTrait},
+    *,
+};
 
 pub struct WgpuInstance {
     pub(crate) device: wgpu::Device,
     pub(crate) queue: wgpu::Queue,
+}
+
+impl WgpuInstance {
+    #[inline]
+    pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
+        Self { device, queue }
+    }
+}
+
+pub struct WgpuSwapChain {
     pub(crate) surface: wgpu::Surface,
     pub(crate) desc: wgpu::SwapChainDescriptor,
     pub(crate) swapchain: wgpu::SwapChain,
 }
 
-impl WgpuInstance {
+impl WgpuSwapChain {
     #[inline]
     pub fn new(
-        device: wgpu::Device,
-        queue: wgpu::Queue,
+        device: &wgpu::Device,
         surface: wgpu::Surface,
         desc: wgpu::SwapChainDescriptor,
     ) -> Self {
         let swapchain = device.create_swap_chain(&surface, &desc);
 
         Self {
-            device,
-            queue,
             surface,
             desc,
             swapchain,
@@ -49,27 +68,56 @@ fn buffer_binding<'a>(buffer: &BufferBinding<'a>) -> wgpu::BufferBinding<'a> {
     }
 }
 
-impl Instance for WgpuInstance {
+impl SwapChain for WgpuSwapChain {
     #[inline]
-    fn swapchain_format(&self) -> wgpu_types::TextureFormat {
+    fn format(&self) -> wgpu_types::TextureFormat {
         self.desc.format
     }
 
     #[inline]
-    fn swapchain_size(&self) -> (u32, u32) {
+    fn size(&self) -> (u32, u32) {
         (self.desc.width, self.desc.height)
     }
 
     #[inline]
-    fn recreate(&mut self, width: u32, height: u32) {
+    fn recreate(&mut self, instance: &dyn Instance, width: u32, height: u32) {
         self.desc.width = width;
         self.desc.height = height;
-        self.swapchain = self.device.create_swap_chain(&self.surface, &self.desc);
+        self.swapchain = instance
+            .any()
+            .downcast_ref::<WgpuInstance>()
+            .unwrap()
+            .device
+            .create_swap_chain(&self.surface, &self.desc);
     }
 
     #[inline]
+    fn get_current_frame(&self) -> Result<SwapChainFrame, SwapChainError> {
+        let frame = self.swapchain.get_current_frame()?;
+
+        Ok(SwapChainFrame {
+            output: SwapChainTexture(Box::new(frame.output)),
+            suboptimal: frame.suboptimal,
+        })
+    }
+}
+
+impl Instance for WgpuInstance {
+    #[inline]
     fn create_buffer(&self, desc: &wgpu_types::BufferDescriptor<Option<&str>>) -> Buffer {
         let buffer = self.device.create_buffer(desc);
+        Buffer(Box::new(buffer))
+    }
+
+    #[inline]
+    fn create_buffer_init(&self, desc: &BufferInitDescriptor) -> Buffer {
+        let buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: desc.label,
+                contents: desc.contents,
+                usage: desc.usage,
+            });
         Buffer(Box::new(buffer))
     }
 
@@ -117,7 +165,7 @@ impl Instance for WgpuInstance {
             })
             .collect::<Vec<_>>();
 
-        BindGroup(Box::new(self.device.create_bind_group(
+        BindGroup(Arc::new(self.device.create_bind_group(
             &wgpu::BindGroupDescriptor {
                 label: desc.label,
                 layout: desc.layout.0.downcast_ref().unwrap(),
@@ -187,7 +235,7 @@ impl Instance for WgpuInstance {
                 depth_stencil: desc.depth_stencil.clone(),
                 primitive: desc.primitive,
                 multisample: desc.multisample,
-            }, 
+            },
         )))
     }
 
@@ -207,27 +255,22 @@ impl Instance for WgpuInstance {
     }
 
     #[inline]
-    fn get_current_frame(&self) -> Result<SwapChainFrame, SwapChainError> {
-        let frame = self.swapchain.get_current_frame()?;
-
-        Ok(SwapChainFrame {
-            output: SwapChainTexture(Box::new(frame.output)),
-            suboptimal: frame.suboptimal,
-        })
-    }
-
-    #[inline]
     fn write_buffer(&self, buffer: &Buffer, offset: u64, data: &[u8]) {
         let buffer = buffer.0.any().downcast_ref().unwrap();
 
         self.queue.write_buffer(buffer, offset, data);
     }
+
+    #[inline]
+    fn any(&self) -> &dyn Any {
+        self
+    }
 }
 
 impl BufferTrait for wgpu::Buffer {
     #[inline]
-    fn slice(&self, bounds: std::ops::Range<u64>) -> BufferSlice<'_> {
-        BufferSlice(Box::new(self.slice(bounds)))
+    fn slice(&self, start: Bound<&u64>, end: Bound<&u64>) -> BufferSlice<'_> {
+        BufferSlice(Box::new(self.slice((start, end))))
     }
 
     #[inline]
@@ -240,7 +283,7 @@ unsafe impl<'a> BufferSliceTrait<'a> for wgpu::BufferSlice<'a> {}
 
 fn downcast_buffer_slice<'a, 'b>(slice: BufferSlice<'a>) -> wgpu::BufferSlice<'a> {
     // SAFETY: wgpu::BufferSlice is the ONLY implementer of BufferSliceTrait, meaning casting is safe.
-    unsafe { *Box::from_raw(Box::into_raw(slice.0) as *mut _ as *mut wgpu::BufferSlice<'a>) } 
+    unsafe { *Box::from_raw(Box::into_raw(slice.0) as *mut _ as *mut wgpu::BufferSlice<'a>) }
 }
 
 impl TextureTrait for wgpu::Texture {
@@ -328,10 +371,14 @@ impl<'a> RenderPassTrait<'a> for wgpu::RenderPass<'a> {
     }
 
     #[inline]
-    fn set_index_buffer(&mut self, buffer_slice: BufferSlice<'a>, index_format: wgpu_types::IndexFormat) {
+    fn set_index_buffer(
+        &mut self,
+        buffer_slice: BufferSlice<'a>,
+        index_format: wgpu_types::IndexFormat,
+    ) {
         self.set_index_buffer(downcast_buffer_slice(buffer_slice), index_format);
     }
-    
+
     #[inline]
     fn set_vertex_buffer(&mut self, slot: u32, buffer_slice: BufferSlice<'a>) {
         self.set_vertex_buffer(slot, downcast_buffer_slice(buffer_slice));
@@ -343,9 +390,14 @@ impl<'a> RenderPassTrait<'a> for wgpu::RenderPass<'a> {
     }
 
     #[inline]
-    fn draw_indexed(&mut self, indices: std::ops::Range<u32>, base_vertex: i32, instances: std::ops::Range<u32>) {
+    fn draw_indexed(
+        &mut self,
+        indices: std::ops::Range<u32>,
+        base_vertex: i32,
+        instances: std::ops::Range<u32>,
+    ) {
         self.draw_indexed(indices, base_vertex, instances);
-    } 
+    }
 }
 
 impl SwapChainTextureTrait for wgpu::SwapChainTexture {

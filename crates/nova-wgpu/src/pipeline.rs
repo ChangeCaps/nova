@@ -13,7 +13,7 @@ pub struct ShaderModuleDescriptor<'a> {
     pub flags: wgpu_types::ShaderFlags,
 }
 
-pub struct ShaderModule(pub(crate) Box<dyn Any>);
+pub struct ShaderModule(pub(crate) Box<dyn Any + Send + Sync>);
 
 pub struct PipelineLayoutDescriptor<'a> {
     pub label: Option<&'a str>,
@@ -21,7 +21,7 @@ pub struct PipelineLayoutDescriptor<'a> {
     pub push_constant_ranges: &'a [wgpu_types::PushConstantRange],
 }
 
-pub struct PipelineLayout(pub(crate) Box<dyn Any>);
+pub struct PipelineLayout(pub(crate) Box<dyn Any + Send + Sync>);
 
 #[derive(Clone, Debug)]
 pub struct VertexBufferLayout<'a> {
@@ -54,4 +54,4 @@ pub struct RenderPipelineDescriptor<'a> {
     pub multisample: wgpu_types::MultisampleState,
 }
 
-pub struct RenderPipeline(pub(crate) Box<dyn Any>);
+pub struct RenderPipeline(pub(crate) Box<dyn Any + Send + Sync>);

@@ -1,7 +1,10 @@
 use std::{collections::BTreeMap, sync::RwLock};
 
+use rayon::prelude::*;
+
 use crate::{
     node::{Node, NodeId},
+    plugin::Plugin,
     system::{System, Systems},
     Read, Write,
 };
@@ -27,8 +30,9 @@ impl World {
     }
 
     #[inline]
-    pub fn add_node(&mut self, node: Node) -> NodeId {
+    pub fn insert_node(&mut self, mut node: Node) -> NodeId {
         let id = self.generate_node_id();
+        node.id = Some(id);
         self.nodes.insert(id, node.into());
         id
     }
@@ -64,7 +68,14 @@ impl World {
     }
 
     #[inline]
-    pub fn insert_system<T: System>(&mut self, system: T) {
+    pub fn register_system<T: System + Default>(&self) {
+        if !self.systems.contains::<T>() {
+            self.insert_system(T::default());
+        }
+    }
+
+    #[inline]
+    pub fn insert_system<T: System>(&self, system: T) {
         self.systems.insert(system);
     }
 
@@ -79,8 +90,25 @@ impl World {
     }
 
     #[inline]
+    pub fn with_plugin(&mut self, plugin: impl Plugin) -> &mut Self {
+        plugin.build(self);
+        self.dequeue();
+
+        self
+    }
+
+    #[inline]
+    pub fn dequeue(&mut self) {
+        self.systems.dequeue();
+
+        for mut node in self.nodes_mut_filtered() {
+            node.dequeue();
+        }
+    }
+
+    #[inline]
     pub fn init(&mut self) {
-        for system in self.systems.iter_mut_filtered() {
+        for mut system in self.systems.iter_mut_filtered() {
             system.init(self);
         }
 
@@ -90,13 +118,47 @@ impl World {
     }
 
     #[inline]
+    pub fn pre_update(&mut self) {
+        for mut system in self.systems.iter_mut_filtered() {
+            system.pre_update(self);
+        }
+
+        self.dequeue();
+
+        self.nodes.par_iter().for_each(|(_id, node)| {
+            node.read().unwrap().pre_update(self);
+        });
+
+        self.dequeue();
+    }
+
+    #[inline]
     pub fn update(&mut self) {
-        for system in self.systems.iter_mut_filtered() {
+        for mut system in self.systems.iter_mut_filtered() {
             system.update(self);
         }
 
-        for node in self.nodes_filtered() {
-            node.update(self);
+        self.dequeue();
+
+        self.nodes.par_iter().for_each(|(_id, node)| {
+            node.read().unwrap().update(self);
+        });
+
+        self.dequeue();
+    }
+
+    #[inline]
+    pub fn post_update(&mut self) {
+        for mut system in self.systems.iter_mut_filtered() {
+            system.post_update(self);
         }
+
+        self.dequeue();
+
+        self.nodes.par_iter().for_each(|(_id, node)| {
+            node.read().unwrap().post_update(self);
+        });
+
+        self.dequeue();
     }
 }

@@ -1,4 +1,4 @@
-use nova::prelude::*;
+use nova_game::prelude::*;
 
 struct TestComponent(u32);
 
@@ -14,7 +14,7 @@ fn main() {
     let mut node = Node::new("Node");
     node.add_component(TestComponent(4));
 
-    world.add_node(node);
+    world.insert_node(node);
 
     world.update();
 }
