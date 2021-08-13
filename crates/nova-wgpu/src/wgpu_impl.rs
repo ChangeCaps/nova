@@ -288,7 +288,7 @@ fn downcast_buffer_slice<'a, 'b>(slice: BufferSlice<'a>) -> wgpu::BufferSlice<'a
 
 impl TextureTrait for wgpu::Texture {
     #[inline]
-    fn view(&self) -> TextureView {
+    fn view(&self) -> TextureView<'static> {
         TextureView::Owned(Box::new(self.create_view(&wgpu::TextureViewDescriptor {
             label: None,
             format: None,

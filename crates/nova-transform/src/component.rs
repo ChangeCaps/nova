@@ -1,7 +1,33 @@
-use std::ops::Mul;
+use std::ops::{Deref, DerefMut, Mul};
 
 use glam::{Mat3, Mat4, Quat, Vec3};
-use nova_core::component::Component;
+use nova_core::{component::Component, node::NodeId};
+
+#[derive(Clone, Debug)]
+pub struct Parent(pub NodeId);
+
+impl Component for Parent {}
+
+#[derive(Clone, Debug, Default)]
+pub struct GlobalTransform(pub Transform);
+
+impl Deref for GlobalTransform {
+    type Target = Transform;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for GlobalTransform {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Component for GlobalTransform {}
 
 #[derive(Clone, Debug)]
 pub struct Transform {
@@ -71,13 +97,13 @@ impl Transform {
         }
     }
 
-	#[inline]
-	pub fn look_at(&mut self, target: Vec3, up: Vec3) {
-		let forward = Vec3::normalize(self.translation - target);
-		let right = up.cross(forward).normalize();
-		let up = forward.cross(right);
-		self.rotation = Quat::from_mat3(&Mat3::from_cols(right, up, forward));
-	}
+    #[inline]
+    pub fn look_at(&mut self, target: Vec3, up: Vec3) {
+        let forward = Vec3::normalize(self.translation - target);
+        let right = up.cross(forward).normalize();
+        let up = forward.cross(right);
+        self.rotation = Quat::from_mat3(&Mat3::from_cols(right, up, forward));
+    }
 
     #[inline]
     pub fn matrix(&self) -> Mat4 {

@@ -9,9 +9,19 @@ pub struct MeshData {
 }
 
 #[derive(Clone, Debug)]
-pub struct Mesh<V: Pod> {
+pub struct Mesh<V> {
     pub vertices: Vec<V>,
     pub indices: Vec<u32>,
+}
+
+impl<V> Default for Mesh<V> {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            vertices: Vec::new(),
+            indices: Vec::new(),
+        }
+    }
 }
 
 impl<V: Pod> From<Mesh<V>> for MeshData {

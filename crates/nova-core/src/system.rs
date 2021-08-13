@@ -26,7 +26,7 @@ pub trait System: Send + Sync + 'static {
 #[derive(Default)]
 pub struct Systems {
     queue: SegQueue<(TypeId, Box<dyn System>)>,
-    systems: BTreeMap<TypeId, RwLock<Box<dyn System>>>,
+    pub(crate) systems: BTreeMap<TypeId, RwLock<Box<dyn System>>>,
 }
 
 impl Systems {

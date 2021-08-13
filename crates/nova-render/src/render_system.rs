@@ -1,21 +1,26 @@
-use std::{any::TypeId, collections::BTreeMap};
-
-use bytemuck::cast_slice;
-use nova_assets::Assets;
-use nova_core::{component::Component, node::Node, system::System, world::World};
-use nova_wgpu::*;
-
 use crate::{
     component::MeshInstance,
     mesh::MeshData,
     render_commands::{RenderCommand, RenderCommands},
+    render_texture::RenderTexture,
     renderable::Renderable,
 };
+use bytemuck::cast_slice;
+use nova_assets::{Assets, Handle};
+use nova_core::{component::Component, node::Node, system::System, world::World};
+use nova_wgpu::*;
+use nova_window::WindowSystem;
+use std::{any::TypeId, collections::BTreeMap};
+
+pub const MAIN_PASS_DEPTH: Handle<RenderTexture> = Handle::from_u64(28346982346);
 
 #[derive(Default)]
 pub struct RenderSystem {
     pre_render: BTreeMap<TypeId, Box<dyn Fn(&mut dyn Component, &Node, &World) + Send + Sync>>,
-    render: BTreeMap<TypeId, Box<dyn Fn(&mut dyn Component, &Node, &World, &mut RenderCommands) + Send + Sync>>,
+    render: BTreeMap<
+        TypeId,
+        Box<dyn Fn(&mut dyn Component, &Node, &World, &mut RenderCommands) + Send + Sync>,
+    >,
 }
 
 impl RenderSystem {
@@ -51,7 +56,7 @@ impl RenderSystem {
 
     #[inline]
     pub fn render_view(&self, instance: &dyn Instance, world: &World, target: &TextureView) {
-        for node in world.nodes_filtered() {
+        world.nodes().for_each(|node| {
             for mut component in node.components.iter_mut_filtered() {
                 if let Some(render_func) =
                     self.pre_render.get(&component.as_ref().as_any().type_id())
@@ -59,11 +64,11 @@ impl RenderSystem {
                     render_func(component.as_mut(), &node, world);
                 }
             }
-        }
+        });
 
         let mut render_commands = RenderCommands::default();
 
-        for node in world.nodes_filtered() {
+        for node in world.nodes() {
             for mut component in node.components.iter_mut_filtered() {
                 if let Some(render_func) = self.render.get(&component.as_ref().as_any().type_id()) {
                     render_func(component.as_mut(), &node, world, &mut render_commands);
@@ -73,6 +78,14 @@ impl RenderSystem {
 
         let pipelines = world.system::<Assets<RenderPipeline>>().unwrap();
         let mut meshes = world.system_mut::<Assets<MeshData>>().unwrap();
+        let mut textures = world.system_mut::<Assets<RenderTexture>>().unwrap();
+        let window = world.system_mut::<WindowSystem>().unwrap();
+
+        let depth_texture = textures.get_mut(&MAIN_PASS_DEPTH).unwrap();
+
+        if depth_texture.size != window.window.size() {
+            depth_texture.resize(instance, window.window.size());
+        }
 
         let mut encoder = instance.create_command_encoder(&CommandEncoderDescriptor {
             label: Some("render_system_encoder"),
@@ -88,12 +101,19 @@ impl RenderSystem {
                     store: true,
                 },
             }],
-            depth_stencil_attachment: None,
+            depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+                view: &depth_texture.view,
+                depth_ops: Some(Operations {
+                    load: LoadOp::Clear(1.0),
+                    store: true,
+                }),
+                stencil_ops: None,
+            }),
         });
 
         for command in &render_commands.commands {
             match command {
-                RenderCommand::SetMesh(mesh_handle) => {
+                RenderCommand::SetMesh(mesh_handle) => { 
                     if let Some(mesh) = meshes.get_mut(mesh_handle) {
                         if mesh.vertex_buffer.is_none() {
                             let vertex_buffer =
@@ -159,12 +179,23 @@ impl RenderSystem {
 
 impl System for RenderSystem {
     #[inline]
-    fn init(&mut self, _world: &World) {
+    fn init(&mut self, world: &World) {
         self.register_renderable::<MeshInstance>();
+
+        let gpu = world.system::<GpuSystem>().unwrap();
+        let window = world.system::<WindowSystem>().unwrap();
+        let size = window.window.size();
+
+        let texture = RenderTexture::new(gpu.instance.as_ref(), TextureFormat::Depth24Plus, size);
+
+        world
+            .system_mut::<Assets<RenderTexture>>()
+            .unwrap()
+            .insert_untracked(MAIN_PASS_DEPTH, texture);
     }
 
     #[inline]
-    fn update(&mut self, world: &World) {
+    fn post_update(&mut self, world: &World) {
         let instance = world.system::<GpuSystem>().unwrap().instance.clone();
         let frame = world
             .system::<GpuSystem>()

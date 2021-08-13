@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use bytemuck::bytes_of;
+use bytemuck::cast_slice;
 use glam::Mat4;
 use nova_assets::{Assets, Handle};
 use nova_core::{
@@ -8,22 +8,24 @@ use nova_core::{
     node::{Node, NodeId},
     world::World,
 };
-use nova_transform::component::Transform;
+use nova_transform::component::{GlobalTransform, Transform};
 use nova_wgpu::*;
 
 use crate::{
     camera::{Camera, CameraSystem},
+    light::LightsSystem,
     mesh::MeshData,
     render_commands::RenderCommands,
     renderable::Renderable,
 };
 
+#[derive(Default)]
 pub struct MeshInstance {
     pub mesh_data: Handle<MeshData>,
     pub pipeline: Handle<RenderPipeline>,
     pub bindings: BTreeMap<u32, BindGroup>,
     pub camera: Option<NodeId>,
-    pub buffer: Option<Buffer>, 
+    pub buffer: Option<Buffer>,
 }
 
 impl Component for MeshInstance {}
@@ -33,8 +35,8 @@ impl Renderable for MeshInstance {
     fn pre_render(&mut self, node: &Node, world: &World) {
         let gpu = world.system::<GpuSystem>().unwrap();
 
-        let transform = if let Some(transform) = node.component::<Transform>() {
-            transform.as_ref().clone()
+        let transform = if let Some(transform) = node.component::<GlobalTransform>() {
+            transform.0.clone()
         } else {
             Transform::IDENTITY
         };
@@ -46,7 +48,7 @@ impl Renderable for MeshInstance {
         };
 
         let view_proj = if let Some(node) = world.node(&camera) {
-            let view = if let Some(transform) = node.component::<Transform>() {
+            let view = if let Some(transform) = node.component::<GlobalTransform>() {
                 transform.matrix()
             } else {
                 Transform::IDENTITY.matrix()
@@ -64,7 +66,7 @@ impl Renderable for MeshInstance {
         };
 
         let buffer = if let Some(buffer) = &self.buffer {
-            buffer 
+            buffer
         } else {
             let buffer = gpu.instance.create_buffer(&BufferDescriptor {
                 label: Some("mesh_instance_transform_view_proj"),
@@ -78,9 +80,15 @@ impl Renderable for MeshInstance {
             &self.buffer.as_ref().unwrap()
         };
 
-        gpu.instance
-            .write_buffer(buffer, 0, bytes_of(&transform.matrix()));
-        gpu.instance.write_buffer(buffer, 256, bytes_of(&view_proj));
+        let data = &[
+            transform.matrix(),
+            Mat4::IDENTITY,
+            Mat4::IDENTITY,
+            Mat4::IDENTITY,
+            view_proj,
+        ];
+
+        gpu.instance.write_buffer(buffer, 0, cast_slice(data));
 
         if !self.bindings.contains_key(&0) {
             let layout = gpu
@@ -108,8 +116,20 @@ impl Renderable for MeshInstance {
                             },
                             count: None,
                         },
+                        BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: ShaderStage::VERTEX_FRAGMENT,
+                            ty: BindingType::Buffer {
+                                ty: BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
                     ],
                 });
+
+            let lights = world.system::<LightsSystem>().unwrap();
 
             let bind_group = gpu.instance.create_bind_group(&BindGroupDescriptor {
                 label: Some("mesh_instance_transform_view_proj"),
@@ -128,6 +148,14 @@ impl Renderable for MeshInstance {
                         resource: BindingResource::Buffer(BufferBinding {
                             buffer,
                             offset: 256,
+                            size: None,
+                        }),
+                    },
+                    BindGroupEntry {
+                        binding: 2,
+                        resource: BindingResource::Buffer(BufferBinding {
+                            buffer: lights.lights_buffer.as_ref().unwrap(),
+                            offset: 0,
                             size: None,
                         }),
                     },

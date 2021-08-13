@@ -12,4 +12,5 @@ nova-wgpu = { path = "../nova-wgpu" }
 nova-derive = { path = "../nova-derive" }
 nova-assets = { path = "../nova-assets" }
 nova-transform = { path = "../nova-transform" }
+nova-window = { path = "../nova-window" }
 glam = { version = "0.17", features = ["bytemuck"] }

@@ -1,17 +1,20 @@
-use glam::{Vec2, Vec3, Vec4};
+pub mod shape;
+
+use glam::{Vec2, Vec3};
 use nova_assets::{Assets, Handle};
 use nova_core::{plugin::Plugin, system::System, world::World};
-use nova_render::Vertex;
+use nova_render::{color::Color, Vertex};
 use nova_wgpu::*;
 
-pub const PBR_PIPELINE_HANDLE: Handle<RenderPipeline> = Handle::new_from_u64(1246823428346);
+pub const PBR_PIPELINE_HANDLE: Handle<RenderPipeline> = Handle::from_u64(1246823428346);
 
 #[repr(C)]
 #[derive(Clone, Copy, Vertex)]
 pub struct Vertex3d {
     pub position: Vec3,
+    pub normal: Vec3,
     pub uv: Vec2,
-    pub color: Vec4,
+    pub color: Color,
 }
 
 unsafe impl bytemuck::Zeroable for Vertex3d {}
@@ -55,6 +58,16 @@ impl System for D3System {
                             },
                             count: None,
                         },
+                        BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: ShaderStage::VERTEX_FRAGMENT,
+                            ty: BindingType::Buffer {
+                                ty: BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
                     ],
                 });
 
@@ -85,9 +98,18 @@ impl System for D3System {
                     }],
                     entry_point: "main",
                 }),
-                primitive: PrimitiveState::default(),
+                primitive: PrimitiveState {
+                    cull_mode: Some(Face::Back),
+                    ..Default::default()
+                },
                 multisample: MultisampleState::default(),
-                depth_stencil: None,
+                depth_stencil: Some(DepthStencilState {
+                    format: TextureFormat::Depth24Plus,
+                    depth_write_enabled: true,
+                    depth_compare: CompareFunction::LessEqual,
+                    stencil: StencilState::default(),
+                    bias: DepthBiasState::default(),
+                }),
             });
 
         world
@@ -101,6 +123,6 @@ pub struct D3Plugin;
 
 impl Plugin for D3Plugin {
     fn build(self, world: &mut World) {
-        world.register_system::<D3System>();
+        world.register_system_now::<D3System>();
     }
 }

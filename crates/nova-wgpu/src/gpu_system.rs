@@ -11,10 +11,10 @@ pub struct GpuSystem {
 
 impl GpuSystem {
     #[inline]
-    pub fn new<T, S>(instance: T, swapchain: S) -> Self 
+    pub fn new<T, S>(instance: T, swapchain: S) -> Self
     where
         T: Instance + Send + Sync + 'static,
-        S: SwapChain + Send + Sync + 'static
+        S: SwapChain + Send + Sync + 'static,
     {
         Self {
             instance: Arc::new(instance),

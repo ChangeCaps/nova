@@ -19,7 +19,6 @@ enum Command {
 
 pub struct Node {
     pub name: String,
-    pub parent: Option<NodeId>,
     pub components: Components,
     pub id: Option<NodeId>,
     commands: SegQueue<Command>,
@@ -33,7 +32,6 @@ impl Node {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
-            parent: None,
             components: Components::new(),
             id: None,
             commands: SegQueue::new(),
@@ -54,6 +52,11 @@ impl Node {
         self.pre_update.insert(TypeId::of::<T>());
         self.update.insert(TypeId::of::<T>());
         self.post_update.insert(TypeId::of::<T>());
+    }
+
+    #[inline]
+    pub fn contains<T: Component>(&self) -> bool {
+        self.components.components.contains_key(&TypeId::of::<T>())
     }
 
     #[inline]

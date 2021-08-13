@@ -1,6 +1,4 @@
-use std::{collections::BTreeMap, sync::RwLock};
-
-use rayon::prelude::*;
+use std::{any::TypeId, collections::BTreeMap, sync::RwLock};
 
 use crate::{
     node::{Node, NodeId},
@@ -12,8 +10,9 @@ use crate::{
 #[derive(Default)]
 pub struct World {
     pub systems: Systems,
-    pub nodes: BTreeMap<NodeId, RwLock<Node>>,
+    pub nodes: BTreeMap<NodeId, Node>,
     pub next_node_id: NodeId,
+    pub running: bool,
 }
 
 impl World {
@@ -31,6 +30,10 @@ impl World {
 
     #[inline]
     pub fn insert_node(&mut self, mut node: Node) -> NodeId {
+        if self.running {
+            node.init(self);
+        }
+
         let id = self.generate_node_id();
         node.id = Some(id);
         self.nodes.insert(id, node.into());
@@ -38,35 +41,21 @@ impl World {
     }
 
     #[inline]
-    pub fn node(&self, id: &NodeId) -> Option<Read<Node>> {
-        self.nodes.get(id)?.read().ok()
+    pub fn node(&self, id: &NodeId) -> Option<&Node> {
+        self.nodes.get(id)
     }
 
     #[inline]
-    pub fn node_mut(&self, id: &NodeId) -> Option<Write<Node>> {
-        self.nodes.get(id)?.write().ok()
+    pub fn nodes(&self) -> impl Iterator<Item = &Node> {
+        self.nodes.values()
     }
 
     #[inline]
-    pub fn nodes(&self) -> impl Iterator<Item = Option<Read<Node>>> {
-        self.nodes.iter().map(|(_, lock)| lock.read().ok())
+    pub fn nodes_mut(&mut self) -> impl Iterator<Item = &mut Node> {
+        self.nodes.values_mut()
     }
 
-    #[inline]
-    pub fn nodes_mut(&self) -> impl Iterator<Item = Option<Write<Node>>> {
-        self.nodes.iter().map(|(_, lock)| lock.write().ok())
-    }
-
-    #[inline]
-    pub fn nodes_filtered(&self) -> impl Iterator<Item = Read<Node>> {
-        self.nodes.iter().filter_map(|(_, lock)| lock.read().ok())
-    }
-
-    #[inline]
-    pub fn nodes_mut_filtered(&self) -> impl Iterator<Item = Write<Node>> {
-        self.nodes.iter().filter_map(|(_, lock)| lock.write().ok())
-    }
-
+    /// If system doesn't already exist, insert it.
     #[inline]
     pub fn register_system<T: System + Default>(&self) {
         if !self.systems.contains::<T>() {
@@ -74,9 +63,26 @@ impl World {
         }
     }
 
+    /// Inserts system by adding it to a queue, and is at the next dequeue.
     #[inline]
     pub fn insert_system<T: System>(&self, system: T) {
         self.systems.insert(system);
+    }
+
+    /// If system doesn't already exist, insert it now.
+    #[inline]
+    pub fn register_system_now<T: System + Default>(&mut self) {
+        if !self.systems.contains::<T>() {
+            self.insert_system_now(T::default());
+        }
+    }
+
+    /// Inserts system now, rather than queueing it.
+    #[inline]
+    pub fn insert_system_now<T: System>(&mut self, system: T) {
+        self.systems
+            .systems
+            .insert(TypeId::of::<T>(), RwLock::new(Box::new(system)));
     }
 
     #[inline]
@@ -101,9 +107,9 @@ impl World {
     pub fn dequeue(&mut self) {
         self.systems.dequeue();
 
-        for mut node in self.nodes_mut_filtered() {
+        self.nodes.iter_mut().for_each(|(_id, node)| {
             node.dequeue();
-        }
+        });
     }
 
     #[inline]
@@ -112,7 +118,7 @@ impl World {
             system.init(self);
         }
 
-        for node in self.nodes_filtered() {
+        for node in self.nodes() {
             node.init(self);
         }
     }
@@ -125,8 +131,8 @@ impl World {
 
         self.dequeue();
 
-        self.nodes.par_iter().for_each(|(_id, node)| {
-            node.read().unwrap().pre_update(self);
+        self.nodes.iter().for_each(|(_id, node)| {
+            node.pre_update(self);
         });
 
         self.dequeue();
@@ -140,8 +146,8 @@ impl World {
 
         self.dequeue();
 
-        self.nodes.par_iter().for_each(|(_id, node)| {
-            node.read().unwrap().update(self);
+        self.nodes.iter().for_each(|(_id, node)| {
+            node.update(self);
         });
 
         self.dequeue();
@@ -155,8 +161,8 @@ impl World {
 
         self.dequeue();
 
-        self.nodes.par_iter().for_each(|(_id, node)| {
-            node.read().unwrap().post_update(self);
+        self.nodes.iter().for_each(|(_id, node)| {
+            node.post_update(self);
         });
 
         self.dequeue();

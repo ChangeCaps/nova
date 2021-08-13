@@ -12,5 +12,6 @@ pollster = "0.2"
 nova-wgpu = { path = "../nova-wgpu", features = ["wgpu-impl"] }
 nova-core = { path = "../nova-core" }
 nova-render = { path = "../nova-render" }
+nova-window = { path = "../nova-window", features = ["winit-impl"] }
 log = "0.4.14"
 simple_logger = "1.13.0"

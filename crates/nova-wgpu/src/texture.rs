@@ -1,12 +1,19 @@
 use std::any::Any;
 
-pub trait TextureTrait {
-    fn view(&self) -> TextureView;
+pub trait TextureTrait: Send + Sync {
+    fn view(&self) -> TextureView<'static>;
 
     fn any(&self) -> &dyn Any;
 }
 
 pub struct Texture(pub(crate) Box<dyn TextureTrait>);
+
+impl Texture {
+    #[inline]
+    pub fn view(&self) -> TextureView<'static> {
+        self.0.view()
+    }
+}
 
 pub trait SwapChainTextureTrait {
     fn view(&self) -> TextureView;
@@ -35,8 +42,8 @@ impl SwapChainTexture {
 }
 
 pub enum TextureView<'a> {
-    Owned(Box<dyn Any>),
-    Borrowed(&'a dyn Any),
+    Owned(Box<dyn Any + Send + Sync>),
+    Borrowed(&'a (dyn Any + Send + Sync)),
 }
 
 impl<'a> TextureView<'a> {

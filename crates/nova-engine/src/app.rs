@@ -1,11 +1,11 @@
 use nova_core::world::World;
-use nova_render::render_system::RenderSystem;
 use nova_wgpu::{
     gpu_system::GpuSystem,
     instance::Instance,
     wgpu_impl::{WgpuInstance, WgpuSwapChain},
     SwapChain,
 };
+use nova_window::WindowSystem;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -75,14 +75,22 @@ impl App {
         let (instance, sc) = pollster::block_on(init_wgpu(&window));
 
         world.insert_system(GpuSystem::new(instance, sc));
-        world.insert_system(RenderSystem::default());
+        world.insert_system(WindowSystem::new(window));
         world.dequeue();
+
+        world.running = true;
 
         world.init();
 
+        world.dequeue();
+
         event_loop.run(move |event, _, control_flow| match event {
             Event::MainEventsCleared => {
-                window.request_redraw();
+                world
+                    .system_mut::<WindowSystem>()
+                    .unwrap()
+                    .window
+                    .request_redraw();
             }
             Event::RedrawRequested(_) => {
                 world.pre_update();
