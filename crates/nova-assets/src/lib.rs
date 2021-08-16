@@ -62,16 +62,6 @@ impl<T> Handle<T> {
     }
 }
 
-impl<T> Default for Handle<T> {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            inner: InnerHandle::Id(0),
-            marker: None,
-        }
-    }
-}
-
 impl<T> Clone for Handle<T> {
     #[inline]
     fn clone(&self) -> Self {

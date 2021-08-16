@@ -6,7 +6,6 @@ use nova_wgpu::*;
 
 use crate::mesh::MeshData;
 
-#[derive(Default)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct MeshInstance {
     pub mesh_data: Handle<MeshData>,
