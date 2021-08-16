@@ -339,7 +339,10 @@ impl<'a, 'de> DeserializeSeed<'de> for SystemsDeserializer<'a> {
                         self.type_registry.deserialize_system.get(key.as_str())
                     {
                         let system = map.next_value_seed(SystemDeserializer { deserialize })?;
-                        systems.insert(key, system);
+
+                        if let Some(system) = system {
+                            systems.insert(key, system);
+                        }
                     }
                 }
 
@@ -389,7 +392,10 @@ impl<'a, 'de> DeserializeSeed<'de> for ResourcesDeserializer<'a> {
                         self.type_registry.deserialize_resource.get(key.as_str())
                     {
                         let resource = map.next_value_seed(ResourceDeserializer { deserialize })?;
-                        resources.insert(key, resource);
+
+                        if let Some(resource) = resource {
+                            resources.insert(key, resource);
+                        }
                     }
                 }
 
@@ -488,7 +494,10 @@ impl<'a, 'de> DeserializeSeed<'de> for ComponentsDeserializer<'a> {
                     {
                         let component =
                             map.next_value_seed(ComponentDeserializer { deserialize })?;
-                        components.insert(key, component);
+
+                        if let Some(component) = component {
+                            components.insert(key, component);
+                        }
                     }
                 }
 
@@ -507,14 +516,14 @@ struct SystemDeserializer<'a> {
 }
 
 impl<'a, 'de> DeserializeSeed<'de> for SystemDeserializer<'a> {
-    type Value = Box<dyn System>;
+    type Value = Option<Box<dyn System>>;
 
     #[inline]
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        Ok((self.deserialize)(&mut <dyn Deserializer>::erase(deserializer)).unwrap())
+        Ok((self.deserialize)(&mut <dyn Deserializer>::erase(deserializer)).ok())
     }
 }
 
@@ -523,14 +532,14 @@ struct ResourceDeserializer<'a> {
 }
 
 impl<'a, 'de> DeserializeSeed<'de> for ResourceDeserializer<'a> {
-    type Value = Box<dyn Resource>;
+    type Value = Option<Box<dyn Resource>>;
 
     #[inline]
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        Ok((self.deserialize)(&mut <dyn Deserializer>::erase(deserializer)).unwrap())
+        Ok((self.deserialize)(&mut <dyn Deserializer>::erase(deserializer)).ok())
     }
 }
 struct ComponentDeserializer<'a> {
@@ -538,13 +547,13 @@ struct ComponentDeserializer<'a> {
 }
 
 impl<'a, 'de> DeserializeSeed<'de> for ComponentDeserializer<'a> {
-    type Value = Box<dyn Component>;
+    type Value = Option<Box<dyn Component>>;
 
     #[inline]
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        Ok((self.deserialize)(&mut <dyn Deserializer>::erase(deserializer)).unwrap())
+        Ok((self.deserialize)(&mut <dyn Deserializer>::erase(deserializer)).ok())
     }
 }
