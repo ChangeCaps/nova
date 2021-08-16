@@ -19,10 +19,6 @@ use crate::{
 
 fn save(world: &SystemWorld) -> Result<(), Box<dyn std::error::Error>> {
     let project_path = world.read_resource::<ProjectPath>().unwrap();
-    let mut project = world.write_resource::<Project>().unwrap();
-
-    project.try_update(&project_path.0)?;
-    project.write(&project_path.0)?;
 
     let mut world_system = world.write_system::<WorldSystem>().unwrap();
 
@@ -183,11 +179,7 @@ pub fn left_panel_ui(ctx: &CtxRef, world: &mut SystemWorld) {
 
             ui.separator();
 
-            ui.add(
-                TextEdit::singleline(&mut project.package.name)
-                    .text_style(TextStyle::Heading)
-                    .frame(false),
-            );
+            ui.label(&project.package.name);
 
             ui.separator();
 
