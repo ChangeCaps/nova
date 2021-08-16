@@ -11,6 +11,7 @@ use nova_core::{
 };
 use std::collections::BTreeSet;
 
+#[derive(Clone)]
 pub struct Input<T> {
     pressed: BTreeSet<T>,
     down: BTreeSet<T>,
