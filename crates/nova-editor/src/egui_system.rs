@@ -271,6 +271,7 @@ impl<F: Fn(&CtxRef, &mut SystemWorld) + Send + Sync + 'static> System for EguiSy
             }
 
             self.raw_input.events.push(Event::PointerMoved(mouse_pos));
+            self.raw_input.modifiers = modifiers;
 
             let windows = world.read_resource::<Windows>().unwrap();
             let size = windows.primary().size();

@@ -29,8 +29,9 @@ pub struct BuildSettings {
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct MainScene {
-    pub path: PathBuf,
+pub struct GameSettings {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub main_scene: Option<PathBuf>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -41,7 +42,7 @@ pub struct Project {
     pub package: Package,
     pub build: BuildSettings,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub main_scene: Option<MainScene>,
+    pub game: Option<GameSettings>,
 }
 
 impl Default for Project {
@@ -56,7 +57,7 @@ impl Default for Project {
                 manifest_path: PathBuf::from("Cargo.toml"),
                 target_dir: PathBuf::from("target"),
             },
-            main_scene: None,
+            game: None,
         }
     }
 }
@@ -88,12 +89,14 @@ impl Project {
         let meta = path.metadata()?;
 
         if let Some(modified) = &self.modified {
-            if *modified > meta.modified()? {
+            if *modified < meta.modified()? {
                 *self = Self::load(path)?.unwrap();
             }
         } else {
             *self = Self::load(path)?.unwrap();
         }
+
+        self.modified = Some(meta.modified()?);
 
         Ok(())
     }

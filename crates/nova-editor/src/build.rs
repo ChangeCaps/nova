@@ -1,6 +1,7 @@
 use crate::{
     load::Game,
     project::{Project, ProjectPath},
+    scenes::Scenes,
 };
 use cargo_toml::Manifest;
 use libloading::library_filename;
@@ -14,7 +15,6 @@ use std::{
 fn verify_crate_type(manifest: &Manifest) -> Result<(), ()> {
     let lib = manifest.lib.as_ref().ok_or(())?;
     let crate_type = lib.crate_type.as_ref().ok_or(())?;
-    println!("{:?}", crate_type);
 
     if crate_type.iter().find(|ty| *ty == "rlib").is_some() {
         Ok(())
@@ -115,7 +115,7 @@ impl System for BuildSystem {
 
                 log::info!("loading game lib");
 
-                let target = if self.release { 
+                let target = if self.release {
                     project_path
                         .dir()
                         .join(&project.build.target_dir)
@@ -140,9 +140,19 @@ impl System for BuildSystem {
                     }
                 }
 
-                match unsafe { game.init(world, Some(&project_path.dir().join("scene.scn"))) } {
-                    Ok(_) => log::info!("initialized game"),
-                    Err(err) => log::error!("failed to initialize game '{}'", err),
+                if let Some(game_settings) = &project.game {
+                    if let Some(main_scene) = &game_settings.main_scene {
+                        let path = project_path.dir().join(main_scene);
+
+                        match unsafe { game.init(world, Some(&path)) } {
+                            Ok(_) => log::info!("initialized game"),
+                            Err(err) => log::error!("failed to initialize game '{}'", err),
+                        }
+
+                        let mut scenes = world.write_resource::<Scenes>().unwrap();
+                        scenes.loaded.push(path.clone());
+                        scenes.open = Some(path);
+                    }
                 }
             }
         }

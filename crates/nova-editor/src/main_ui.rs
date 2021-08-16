@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use egui::*;
 use glam::UVec2;
 use nova_assets::Assets;
@@ -10,14 +12,54 @@ use crate::{
     build::BuildSystem,
     load::Game,
     project::{Project, ProjectPath},
+    scenes::Scenes,
     view::{View, PRIMARY_VIEW},
     world_system::WorldSystem,
 };
 
+fn save(world: &SystemWorld) -> Result<(), Box<dyn std::error::Error>> {
+    let project_path = world.read_resource::<ProjectPath>().unwrap();
+    let mut project = world.write_resource::<Project>().unwrap();
+
+    project.try_update(&project_path.0)?;
+    project.write(&project_path.0)?;
+
+    let mut world_system = world.write_system::<WorldSystem>().unwrap();
+
+    if let Some(world_instance) = &mut world_system.instance {
+        let scenes = world.read_resource::<Scenes>().unwrap();
+        let path = project_path.dir().join(scenes.open.as_ref().unwrap());
+
+        let scene_string = ron::ser::to_string_pretty(
+            &WorldSerializer {
+                world: &world_instance.world.ref_world(),
+                type_registry: &world_instance.type_registry,
+            },
+            Default::default(),
+        )
+        .unwrap();
+
+        std::fs::write(&path, scene_string.as_bytes()).unwrap(); 
+    }
+
+    Ok(())
+}
+
 pub fn main_ui(ctx: &CtxRef, world: &mut SystemWorld) {
     top_panel_ui(ctx, world);
     left_panel_ui(ctx, world);
+    right_panel_ui(ctx, world);
+    bottom_panel_ui(ctx, world);
+    scene_panel_ui(ctx, world);
     main_panel_ui(ctx, world);
+
+    let input = ctx.input();
+
+    if input.modifiers.ctrl && input.key_pressed(Key::S) {
+        if let Err(e) = save(world) {
+            log::error!("failed to save: {}", e);
+        }
+    }
 }
 
 pub fn top_panel_ui(ctx: &CtxRef, world: &mut SystemWorld) {
@@ -67,25 +109,13 @@ pub fn top_panel_ui(ctx: &CtxRef, world: &mut SystemWorld) {
             let mut world_system = world.write_system::<WorldSystem>().unwrap();
 
             if let Some(world_instance) = &mut world_system.instance {
+                let scenes = world.read_resource::<Scenes>().unwrap();
+                let path = project_path.dir().join(scenes.open.as_ref().unwrap());
+
                 if ui
                     .add(Button::new("Run").enabled(!world_instance.running))
                     .clicked()
                 {
-                    let scene_string = ron::ser::to_string_pretty(
-                        &WorldSerializer {
-                            world: &world_instance.world.ref_world(),
-                            type_registry: &world_instance.type_registry,
-                        },
-                        Default::default(),
-                    )
-                    .unwrap();
-
-                    std::fs::write(
-                        project_path.dir().join("scene.scn"),
-                        scene_string.as_bytes(),
-                    )
-                    .unwrap();
-
                     world_instance.running = true;
                 }
 
@@ -98,18 +128,114 @@ pub fn top_panel_ui(ctx: &CtxRef, world: &mut SystemWorld) {
                     drop(world_system);
 
                     let game = world.read_resource::<Game>().unwrap();
-                    unsafe {
-                        game.init(world, Some(&project_path.dir().join("scene.scn")))
-                            .unwrap()
-                    };
+                    unsafe { game.init(world, Some(&path)).unwrap() };
                 }
             }
         });
     });
 }
 
+fn show_dir_ui(path: &Path, world: &SystemWorld, ui: &mut Ui) -> Result<(), std::io::Error> {
+    let mut dirs = Vec::new();
+    let mut files = Vec::new();
+
+    for entry in path.read_dir()? {
+        let entry = entry?;
+        let path = entry.path();
+        let name = path.file_name().unwrap().to_str().unwrap().to_string();
+
+        if name.starts_with('.') {
+            continue;
+        }
+
+        if path.is_dir() {
+            dirs.push((name, path));
+        } else {
+            files.push((name, path));
+        }
+    }
+
+    for (name, path) in dirs {
+        let ret = ui.collapsing(name, |ui| show_dir_ui(&path, world, ui));
+
+        if let Some(ret) = ret.body_returned {
+            ret?;
+        }
+    }
+
+    for (name, _path) in files {
+        ui.add(Label::new(name).sense(Sense::click()));
+    }
+
+    Ok(())
+}
+
 pub fn left_panel_ui(ctx: &CtxRef, world: &mut SystemWorld) {
-    SidePanel::left("left_panel").show(ctx, |ui| {});
+    SidePanel::left("left_panel")
+        .resizable(true)
+        .show(ctx, |ui| {
+            let project_path = world.read_resource::<ProjectPath>().unwrap();
+            let mut project = world.write_resource::<Project>().unwrap();
+
+            if !project.update(&project_path.0) {
+                return;
+            }
+
+            ui.separator();
+
+            ui.add(
+                TextEdit::singleline(&mut project.package.name)
+                    .text_style(TextStyle::Heading)
+                    .frame(false),
+            );
+
+            ui.separator();
+
+            let res =
+                ScrollArea::auto_sized().show(ui, |ui| show_dir_ui(&project_path.dir(), world, ui));
+
+            if let Err(e) = res {
+                log::error!("error showing files: {}", e);
+            }
+        });
+}
+
+pub fn right_panel_ui(ctx: &CtxRef, world: &mut SystemWorld) {
+    SidePanel::right("right_panel")
+        .resizable(true)
+        .show(ctx, |ui| {
+            ui.separator();
+        });
+}
+
+pub fn bottom_panel_ui(ctx: &CtxRef, world: &mut SystemWorld) {
+    TopBottomPanel::bottom("bottom_panel")
+        .resizable(true)
+        .show(ctx, |ui| {});
+}
+
+pub fn scene_panel_ui(ctx: &CtxRef, world: &mut SystemWorld) {
+    let mut scenes = world.write_resource::<Scenes>().unwrap();
+
+    let scenes = &mut *scenes;
+    let open = if let Some(open) = &mut scenes.open {
+        open
+    } else {
+        return;
+    };
+    let loaded = &scenes.loaded;
+
+    TopBottomPanel::top("scene_panel").show(ctx, |ui| {
+        ui.horizontal(|ui| {
+            for scene in loaded {
+                ui.selectable_value(
+                    open,
+                    scene.clone(),
+                    scene.file_name().unwrap().to_str().unwrap(),
+                );
+            }
+        });
+    });
 }
 
 pub fn main_panel_ui(ctx: &CtxRef, world: &mut SystemWorld) {

@@ -1,7 +1,7 @@
 use nova_assets::Assets;
 use nova_core::{
     system::System,
-    world::{SystemWorld, World, WorldData},
+    world::{SystemWorld, WorldData},
 };
 use nova_input::{key::Key, mouse_button::MouseButton, Input, Mouse};
 use nova_render::{

@@ -5,9 +5,9 @@ mod egui_system;
 mod load;
 mod main_ui;
 mod project;
+mod scenes;
 mod view;
 mod world_system;
-mod scene;
 
 use std::path::PathBuf;
 
@@ -19,6 +19,7 @@ use nova_engine::app::App;
 use nova_render::render_texture::RenderTexture;
 use nova_wgpu::TextureView;
 use project::{Project, ProjectPath};
+use scenes::Scenes;
 use view::{View, ViewSystem};
 use world_system::WorldSystem;
 
@@ -27,7 +28,7 @@ use clap::{crate_authors, crate_version, Clap};
 #[derive(Clap)]
 #[clap(author = crate_authors!(), version = crate_version!())]
 struct Opts {
-    /// Path to the root of the project.
+    /// Path to the root of the project or 'Nova.toml'.
     path: PathBuf,
 }
 
@@ -72,6 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     world.insert_resource(project);
     world.insert_resource(ProjectPath(path));
     world.register_resource::<Game>();
+    world.register_resource::<Scenes>();
     world.register_system::<ViewSystem>();
     world.register_system::<BuildSystem>();
     world.register_system::<WorldSystem>();
