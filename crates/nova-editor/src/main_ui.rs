@@ -9,7 +9,7 @@ use nova_wgpu::{Instance, TextureView};
 use crate::{
     build::BuildSystem,
     load::Game,
-    project::Project,
+    project::{Project, ProjectPath},
     view::{View, PRIMARY_VIEW},
     world_system::WorldSystem,
 };
@@ -23,7 +23,8 @@ pub fn main_ui(ctx: &CtxRef, world: &mut SystemWorld) {
 pub fn top_panel_ui(ctx: &CtxRef, world: &mut SystemWorld) {
     TopBottomPanel::top("top_panel").show(ctx, |ui| {
         ui.horizontal(|ui| {
-            let project = world.read_resource::<Project>().unwrap();
+            let project_path = world.read_resource::<ProjectPath>().unwrap();
+            let mut project = world.write_resource::<Project>().unwrap();
 
             if ui.button("File").clicked() {}
 
@@ -32,6 +33,7 @@ pub fn top_panel_ui(ctx: &CtxRef, world: &mut SystemWorld) {
             if ui
                 .add(Button::new("Build").enabled(!builder.is_building()))
                 .clicked()
+                && project.update(&project_path.0)
             {
                 let mut world_system = world.write_system::<WorldSystem>().unwrap();
                 world_system.unload();
@@ -42,7 +44,14 @@ pub fn top_panel_ui(ctx: &CtxRef, world: &mut SystemWorld) {
                 unsafe { game.unload() };
                 drop(game);
 
-                builder.build(&project.path).unwrap();
+                let res = builder.build(
+                    &project_path.dir().join(&project.build.manifest_path),
+                    &project_path.dir().join(&project.build.target_dir),
+                );
+
+                if let Err(e) = res {
+                    log::error!("failed to build game lib '{}'", e);
+                }
             }
 
             let selected_text = if builder.release { "Release" } else { "Debug" };
@@ -71,8 +80,11 @@ pub fn top_panel_ui(ctx: &CtxRef, world: &mut SystemWorld) {
                     )
                     .unwrap();
 
-                    std::fs::write(project.path.join("scene.scn"), scene_string.as_bytes())
-                        .unwrap();
+                    std::fs::write(
+                        project_path.dir().join("scene.scn"),
+                        scene_string.as_bytes(),
+                    )
+                    .unwrap();
 
                     world_instance.running = true;
                 }
@@ -87,7 +99,7 @@ pub fn top_panel_ui(ctx: &CtxRef, world: &mut SystemWorld) {
 
                     let game = world.read_resource::<Game>().unwrap();
                     unsafe {
-                        game.init(world, Some(&project.path.join("scene.scn")))
+                        game.init(world, Some(&project_path.dir().join("scene.scn")))
                             .unwrap()
                     };
                 }

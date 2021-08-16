@@ -3,7 +3,7 @@ use nova_core::{
     system::System,
     world::{SystemWorld, World, WorldData},
 };
-use nova_input::{Input, Mouse, key::Key, mouse_button::MouseButton};
+use nova_input::{key::Key, mouse_button::MouseButton, Input, Mouse};
 use nova_render::{
     camera::CameraSystem, render_stage::Target, render_texture::RenderTexture,
     renderer::RendererSystem,
@@ -64,13 +64,13 @@ impl System for WorldSystem {
                 }
 
                 if let Some(system) = world.system_mut::<Input<MouseButton>>() {
-                    *system = mouse_input.clone(); 
+                    *system = mouse_input.clone();
                 }
 
                 if let Some(resource) = world.resource_mut::<Mouse>() {
                     *resource = mouse.clone();
                 }
-                
+
                 world_instance.world.pre_update();
                 world_instance.world.update();
                 world_instance.world.post_update();

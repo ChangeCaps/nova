@@ -16,12 +16,15 @@ nova-type = { path = "../nova-type", features = ["serialize"] }
 nova-scene = { path = "../nova-scene" }
 nova-wgpu = { path = "../nova-wgpu" }
 nova-window = { path = "../nova-window" }
+serde = { version = "1.0", features = ["derive"] }
 egui = "0.13"
 bytemuck = "1.7"
-libloading = "0.7.0"
+libloading = "0.7"
 clap = "3.0.0-beta.2"
 cargo_toml = "0.9"
 log = "0.4"
+simple_logger = "1.13"
 glam = "0.17"
 crossbeam = "0.8"
 ron = "0.6"
+toml = "0.5"

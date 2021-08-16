@@ -78,13 +78,12 @@ impl App {
 
     #[inline]
     pub fn run(mut self) -> ! {
-        simple_logger::SimpleLogger::new()
+        let _ = simple_logger::SimpleLogger::new()
             .with_module_level("gfx", log::LevelFilter::Error)
             .with_module_level("wgpu", log::LevelFilter::Error)
             .with_module_level("winit", log::LevelFilter::Error)
             .with_module_level("naga", log::LevelFilter::Error)
-            .init()
-            .unwrap();
+            .init();
 
         let event_loop = EventLoop::new();
         let window_builder = WindowBuilder::new().with_title(&self.title);

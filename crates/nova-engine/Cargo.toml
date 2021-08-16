@@ -15,4 +15,4 @@ nova-render = { path = "../nova-render" }
 nova-window = { path = "../nova-window", features = ["winit-impl"] }
 nova-input = { path = "../nova-input", features = ["winit"] }
 log = "0.4.14"
-simple_logger = "1.13.0"
+simple_logger = "1.13"
