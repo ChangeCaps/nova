@@ -110,6 +110,11 @@ impl<T: Ord + Send + Sync + 'static> System for Input<T> {
 }
 
 #[derive(Clone, Default)]
+pub struct TextInput {
+    pub text: Vec<String>,
+}
+
+#[derive(Clone, Default)]
 pub struct Mouse {
     pub position: Vec2,
 }
