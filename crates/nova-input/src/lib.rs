@@ -4,10 +4,7 @@ pub mod mouse_button;
 use glam::Vec2;
 use key::Key;
 use mouse_button::MouseButton;
-use nova_core::{
-    plugin::Plugin,
-    world::World,
-};
+use nova_core::{plugin::Plugin, world::World};
 use std::collections::BTreeSet;
 
 #[derive(Clone)]

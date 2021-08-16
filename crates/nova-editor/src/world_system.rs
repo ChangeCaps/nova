@@ -3,7 +3,7 @@ use nova_core::{
     system::System,
     world::{SystemWorld, WorldData},
 };
-use nova_input::{Input, Mouse, TextInput, key::Key, mouse_button::MouseButton};
+use nova_input::{key::Key, mouse_button::MouseButton, Input, Mouse, TextInput};
 use nova_render::{
     camera::CameraSystem, render_stage::Target, render_texture::RenderTexture,
     renderer::RendererSystem,

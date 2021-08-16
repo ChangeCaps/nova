@@ -23,15 +23,15 @@ pub struct Package {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct BuildSettings {
-    pub manifest_path: PathBuf,
-    pub target_dir: PathBuf,
+    pub manifest_path: String,
+    pub target_dir: String,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct GameSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub main_scene: Option<PathBuf>,
+    pub main_scene: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -54,8 +54,8 @@ impl Default for Project {
                 name: String::from("nova-game"),
             },
             build: BuildSettings {
-                manifest_path: PathBuf::from("Cargo.toml"),
-                target_dir: PathBuf::from("target"),
+                manifest_path: String::from("Cargo.toml"),
+                target_dir: String::from("target"),
             },
             game: None,
         }
@@ -71,6 +71,21 @@ impl Project {
         };
 
         Ok(Some(toml::from_str(&project_str)?))
+    }
+
+    #[inline]
+    pub fn manifest_path(&self) -> PathBuf {
+        Path::new(&self.build.manifest_path).iter().collect()
+    }
+
+    #[inline]
+    pub fn target_dir(&self) -> PathBuf {
+        Path::new(&self.build.target_dir).iter().collect()
+    }
+
+    #[inline]
+    pub fn main_scene_path(&self) -> Option<PathBuf> {
+        Some(Path::new(self.game.as_ref()?.main_scene.as_ref()?).iter().collect())
     }
 
     #[inline]

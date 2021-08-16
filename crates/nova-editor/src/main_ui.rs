@@ -35,7 +35,7 @@ fn save(world: &SystemWorld) -> Result<(), Box<dyn std::error::Error>> {
         )
         .unwrap();
 
-        std::fs::write(&path, scene_string.as_bytes()).unwrap(); 
+        std::fs::write(&path, scene_string.as_bytes()).unwrap();
     }
 
     Ok(())
@@ -83,8 +83,8 @@ pub fn top_panel_ui(ctx: &CtxRef, world: &mut SystemWorld) {
                 drop(game);
 
                 let res = builder.build(
-                    &project_path.dir().join(&project.build.manifest_path),
-                    &project_path.dir().join(&project.build.target_dir),
+                    &project_path.dir().join(&project.manifest_path()),
+                    &project_path.dir().join(&project.target_dir()),
                 );
 
                 if let Err(e) = res {

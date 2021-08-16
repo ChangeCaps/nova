@@ -100,15 +100,14 @@ impl System for BuildSystem {
 
                 let mut game = world.write_resource::<Game>().unwrap();
 
-                let manifest = match Manifest::from_path(
-                    project_path.dir().join(&project.build.manifest_path),
-                ) {
-                    Ok(manifest) => manifest,
-                    Err(e) => {
-                        log::error!("failed to load Cargo.toml '{}'", e);
-                        return;
-                    }
-                };
+                let manifest =
+                    match Manifest::from_path(project_path.dir().join(project.manifest_path())) {
+                        Ok(manifest) => manifest,
+                        Err(e) => {
+                            log::error!("failed to load Cargo.toml '{}'", e);
+                            return;
+                        }
+                    };
 
                 let project_name = &manifest.package.as_ref().unwrap().name;
                 let lib_name = project_name.replace('-', "_");
@@ -118,13 +117,10 @@ impl System for BuildSystem {
                 let target = if self.release {
                     project_path
                         .dir()
-                        .join(&project.build.target_dir)
+                        .join(project.target_dir())
                         .join("release")
                 } else {
-                    project_path
-                        .dir()
-                        .join(&project.build.target_dir)
-                        .join("debug")
+                    project_path.dir().join(project.target_dir()).join("debug")
                 };
 
                 let lib_path = target.join(library_filename(lib_name));
@@ -140,19 +136,17 @@ impl System for BuildSystem {
                     }
                 }
 
-                if let Some(game_settings) = &project.game {
-                    if let Some(main_scene) = &game_settings.main_scene {
-                        let path = project_path.dir().join(main_scene);
+                if let Some(main_scene) = project.main_scene_path() {
+                    let path = project_path.dir().join(main_scene);
 
-                        match unsafe { game.init(world, Some(&path)) } {
-                            Ok(_) => log::info!("initialized game"),
-                            Err(err) => log::error!("failed to initialize game '{}'", err),
-                        }
-
-                        let mut scenes = world.write_resource::<Scenes>().unwrap();
-                        scenes.loaded.push(path.clone());
-                        scenes.open = Some(path);
+                    match unsafe { game.init(world, Some(&path)) } {
+                        Ok(_) => log::info!("initialized game"),
+                        Err(err) => log::error!("failed to initialize game '{}'", err),
                     }
+
+                    let mut scenes = world.write_resource::<Scenes>().unwrap();
+                    scenes.loaded.push(path.clone()); 
+                    scenes.open = Some(path);
                 }
             }
         }
