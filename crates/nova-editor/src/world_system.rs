@@ -3,7 +3,7 @@ use nova_core::{
     system::System,
     world::{SystemWorld, WorldData},
 };
-use nova_input::{key::Key, mouse_button::MouseButton, Input, Mouse};
+use nova_input::{Input, Mouse, TextInput, key::Key, mouse_button::MouseButton};
 use nova_render::{
     camera::CameraSystem, render_stage::Target, render_texture::RenderTexture,
     renderer::RendererSystem,
@@ -53,18 +53,23 @@ impl System for WorldSystem {
 
         if let Some(world_instance) = &mut self.instance {
             if world_instance.running {
-                let key_input = world.read_system::<Input<Key>>().unwrap();
-                let mouse_input = world.read_system::<Input<MouseButton>>().unwrap();
+                let key_input = world.read_resource::<Input<Key>>().unwrap();
+                let mouse_input = world.read_resource::<Input<MouseButton>>().unwrap();
+                let text_input = world.read_resource::<TextInput>().unwrap();
                 let mouse = world.read_resource::<Mouse>().unwrap();
 
                 let mut world = world_instance.world.world();
 
-                if let Some(system) = world.system_mut::<Input<Key>>() {
-                    *system = key_input.clone();
+                if let Some(resource) = world.resource_mut::<Input<Key>>() {
+                    *resource = key_input.clone();
                 }
 
-                if let Some(system) = world.system_mut::<Input<MouseButton>>() {
-                    *system = mouse_input.clone();
+                if let Some(resource) = world.resource_mut::<Input<MouseButton>>() {
+                    *resource = mouse_input.clone();
+                }
+
+                if let Some(resource) = world.resource_mut::<TextInput>() {
+                    *resource = text_input.clone();
                 }
 
                 if let Some(resource) = world.resource_mut::<Mouse>() {

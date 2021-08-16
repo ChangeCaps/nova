@@ -206,7 +206,7 @@ impl<F: Fn(&CtxRef, &mut SystemWorld) + Send + Sync + 'static> System for EguiSy
         {
             let mouse = world.read_resource::<Mouse>().unwrap();
             let mouse_pos = Pos2::new(mouse.position.x, mouse.position.y);
-            let input = world.read_system::<Input<Key>>().unwrap();
+            let input = world.read_resource::<Input<Key>>().unwrap();
 
             let modifiers = Modifiers {
                 alt: input.down(&Key::LAlt),
@@ -236,7 +236,7 @@ impl<F: Fn(&CtxRef, &mut SystemWorld) + Send + Sync + 'static> System for EguiSy
                 }
             }
 
-            let input = world.read_system::<Input<MouseButton>>().unwrap();
+            let input = world.read_resource::<Input<MouseButton>>().unwrap();
 
             for button in input.iter_pressed() {
                 let button = match button {

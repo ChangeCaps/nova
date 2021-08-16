@@ -1,5 +1,5 @@
 use nova_core::world::{World, WorldData};
-use nova_input::{key::Key, mouse_button::MouseButton, Input, InputPlugin, Mouse};
+use nova_input::{Input, InputPlugin, Mouse, TextInput, key::Key, mouse_button::MouseButton};
 use nova_render::{render_stage::Target, render_target::RenderTarget, renderer::RendererSystem};
 use nova_wgpu::{
     instance::Instance,
@@ -121,6 +121,10 @@ impl App {
                 self.world.update();
                 self.world.post_update();
 
+                self.world.resources.get_mut::<Input<Key>>().unwrap().clear();
+                self.world.resources.get_mut::<Input<MouseButton>>().unwrap().clear();
+                self.world.resources.get_mut::<TextInput>().unwrap().chars.clear();
+
                 let mut world = self.world.system_world();
 
                 if let Some(mut renderer) = world.systems.write::<RendererSystem>() {
@@ -166,7 +170,7 @@ impl App {
                         },
                     ..
                 } => {
-                    let input = self.world.systems.get_mut::<Input<Key>>().unwrap();
+                    let input = self.world.resources.get_mut::<Input<Key>>().unwrap();
 
                     if let Some(keycode) = virtual_keycode {
                         match state {
@@ -179,8 +183,11 @@ impl App {
                         }
                     }
                 }
+                WindowEvent::ReceivedCharacter(c) => {
+                    self.world.resources.get_mut::<TextInput>().unwrap().chars.push(c);
+                }
                 WindowEvent::MouseInput { state, button, .. } => {
-                    let input = self.world.systems.get_mut::<Input<MouseButton>>().unwrap();
+                    let input = self.world.resources.get_mut::<Input<MouseButton>>().unwrap();
 
                     match state {
                         ElementState::Pressed => {

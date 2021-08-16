@@ -6,8 +6,7 @@ use key::Key;
 use mouse_button::MouseButton;
 use nova_core::{
     plugin::Plugin,
-    system::System,
-    world::{SystemWorld, World},
+    world::World,
 };
 use std::collections::BTreeSet;
 
@@ -102,16 +101,9 @@ impl<T: Ord> Input<T> {
     }
 }
 
-impl<T: Ord + Send + Sync + 'static> System for Input<T> {
-    #[inline]
-    fn post_update(&mut self, _world: &mut SystemWorld) {
-        self.clear();
-    }
-}
-
 #[derive(Clone, Default)]
 pub struct TextInput {
-    pub text: Vec<String>,
+    pub chars: Vec<char>,
 }
 
 #[derive(Clone, Default)]
@@ -124,8 +116,9 @@ pub struct InputPlugin;
 impl Plugin for InputPlugin {
     #[inline]
     fn build(self, world: &mut World) {
-        world.register_system::<Input<Key>>();
-        world.register_system::<Input<MouseButton>>();
+        world.register_resource::<Input<Key>>();
+        world.register_resource::<Input<MouseButton>>();
+        world.register_resource::<TextInput>();
         world.register_resource::<Mouse>();
     }
 }
