@@ -1,6 +1,6 @@
 use std::{any::Any, num::NonZeroU64, sync::Arc};
 
-use crate::{Buffer, TextureView};
+use crate::{Buffer, Sampler, TextureView};
 
 pub struct BindGroupLayoutDescriptor<'a> {
     pub label: Option<&'a str>,
@@ -18,6 +18,7 @@ pub struct BufferBinding<'a> {
 pub enum BindingResource<'a> {
     Buffer(BufferBinding<'a>),
     BufferArray(&'a [BufferBinding<'a>]),
+    Sampler(&'a Sampler),
     TextureView(&'a TextureView<'a>),
     TextureViewArray(&'a [&'a TextureView<'a>]),
 }

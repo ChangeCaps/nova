@@ -4,16 +4,20 @@ use nova_wgpu::*;
 pub struct RenderTexture {
     pub texture: Texture,
     pub view: TextureView<'static>,
-    pub format: TextureFormat,
-    pub size: UVec2,
+    pub desc: TextureDescriptor<Option<&'static str>>,
 }
 
 impl RenderTexture {
     #[inline]
-    pub fn new(instance: &dyn Instance, format: TextureFormat, size: impl Into<UVec2>) -> Self {
+    pub fn new(
+        instance: &Instance,
+        format: TextureFormat,
+        size: impl Into<UVec2>,
+        samples: u32,
+    ) -> Self {
         let size = size.into();
 
-        let texture = instance.create_texture(&TextureDescriptor {
+        let desc = TextureDescriptor {
             label: Some("render_texture"),
             size: Extent3d {
                 width: size.x,
@@ -21,41 +25,42 @@ impl RenderTexture {
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
-            sample_count: 1,
+            sample_count: samples,
             dimension: TextureDimension::D2,
             format,
             usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::SAMPLED,
-        });
+        };
+
+        let texture = instance.create_texture(&desc);
 
         let view = texture.view();
 
         Self {
             texture,
             view,
-            format,
-            size,
+            desc,
         }
     }
 
     #[inline]
-    pub fn resize(&mut self, instance: &dyn Instance, new_size: impl Into<UVec2>) {
+    pub fn size(&self) -> UVec2 {
+        UVec2::new(self.desc.size.width, self.desc.size.height)
+    }
+
+    #[inline]
+    pub fn should_resize(&self, size: impl Into<UVec2>) -> bool {
+        let size = size.into();
+        self.desc.size.width != size.x || self.desc.size.height != size.y
+    }
+
+    #[inline]
+    pub fn resize(&mut self, instance: &Instance, new_size: impl Into<UVec2>) {
         let new_size = new_size.into();
 
-        self.size = new_size;
+        self.desc.size.width = new_size.x;
+        self.desc.size.height = new_size.y;
 
-        self.texture = instance.create_texture(&TextureDescriptor {
-            label: Some("render_texture"),
-            size: Extent3d {
-                width: self.size.x,
-                height: self.size.y,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            format: self.format,
-            usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::SAMPLED,
-        });
+        self.texture = instance.create_texture(&self.desc);
 
         self.view = self.texture.view();
     }

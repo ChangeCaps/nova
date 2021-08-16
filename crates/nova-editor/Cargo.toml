@@ -1,0 +1,27 @@
+[package]
+name = "nova-editor"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nova-assets = { path = "../nova-assets" }
+nova-core = { path = "../nova-core" }
+nova-engine = { path = "../nova-engine" }
+nova-input = { path = "../nova-input" }
+nova-render = { path = "../nova-render", features = ["serialize"] }
+nova-transform = { path = "../nova-transform", features = ["serde"] }
+nova-type = { path = "../nova-type", features = ["serialize"] }
+nova-scene = { path = "../nova-scene" }
+nova-wgpu = { path = "../nova-wgpu" }
+nova-window = { path = "../nova-window" }
+egui = "0.13"
+bytemuck = "1.7"
+libloading = "0.7.0"
+clap = "3.0.0-beta.2"
+cargo_toml = "0.9"
+log = "0.4"
+glam = "0.17"
+crossbeam = "0.8"
+ron = "0.6"

@@ -9,6 +9,6 @@ pub struct TransformPlugin;
 impl Plugin for TransformPlugin {
     #[inline]
     fn build(self, world: &mut World) {
-        world.register_system_now::<TransformSystem>();
+        world.register_system::<TransformSystem>();
     }
 }

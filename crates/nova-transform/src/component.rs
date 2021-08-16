@@ -4,11 +4,13 @@ use glam::{Mat3, Mat4, Quat, Vec3};
 use nova_core::{component::Component, node::NodeId};
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Parent(pub NodeId);
 
 impl Component for Parent {}
 
 #[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GlobalTransform(pub Transform);
 
 impl Deref for GlobalTransform {
@@ -30,6 +32,7 @@ impl DerefMut for GlobalTransform {
 impl Component for GlobalTransform {}
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Transform {
     pub translation: Vec3,
     pub rotation: Quat,
@@ -37,6 +40,7 @@ pub struct Transform {
 }
 
 impl Default for Transform {
+    #[inline]
     fn default() -> Self {
         Self::IDENTITY
     }
@@ -114,6 +118,7 @@ impl Transform {
 impl Mul<Transform> for Transform {
     type Output = Transform;
 
+    #[inline]
     fn mul(self, rhs: Transform) -> Self::Output {
         self.mul_transform(&rhs)
     }

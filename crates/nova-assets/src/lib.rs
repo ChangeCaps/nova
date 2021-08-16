@@ -1,8 +1,15 @@
-use std::{collections::HashMap, marker::PhantomData, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    hash::Hash,
+    marker::PhantomData,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
-use nova_core::{system::System, world::World};
+use nova_core::{system::System, world::SystemWorld};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum InnerHandle {
     Id(u64),
     Path(PathBuf),
@@ -11,6 +18,48 @@ pub enum InnerHandle {
 pub struct Handle<T: 'static> {
     inner: InnerHandle,
     marker: Option<Arc<PhantomData<&'static T>>>,
+}
+
+impl<T> Handle<T> {
+    #[inline]
+    pub const fn from_u64(id: u64) -> Self {
+        Self {
+            inner: InnerHandle::Id(id),
+            marker: None,
+        }
+    }
+
+    #[inline]
+    pub fn from_inner(inner: InnerHandle) -> Self {
+        Self {
+            inner,
+            marker: Some(Arc::new(PhantomData)),
+        }
+    }
+
+    #[inline]
+    pub fn cast<U: 'static>(self) -> Handle<U> {
+        Handle {
+            inner: self.inner,
+            marker: Some(Arc::new(PhantomData)),
+        }
+    }
+
+    #[inline]
+    pub fn unwrap_id(self) -> u64 {
+        match self.inner {
+            InnerHandle::Id(id) => id,
+            _ => panic!("tried to unwrap path handle"),
+        }
+    }
+
+    #[inline]
+    pub fn unwrap_path(self) -> PathBuf {
+        match self.inner {
+            InnerHandle::Path(path) => path,
+            _ => panic!("tried to unwrap id handle"),
+        }
+    }
 }
 
 impl<T> Default for Handle<T> {
@@ -33,21 +82,91 @@ impl<T> Clone for Handle<T> {
     }
 }
 
-impl<T> Handle<T> {
+impl<T> PartialEq for Handle<T> {
     #[inline]
-    pub const fn from_u64(id: u64) -> Self {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+
+impl<T> Eq for Handle<T> {}
+
+impl<T> Hash for Handle<T> {
+    #[inline]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.inner.hash(state);
+    }
+}
+
+impl<T> PartialOrd for Handle<T> {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.inner.partial_cmp(&other.inner)
+    }
+}
+
+impl<T> Ord for Handle<T> {
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.inner.cmp(&other.inner)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<T> serde::Serialize for Handle<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.inner.serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, T> serde::Deserialize<'de> for Handle<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(Handle::from_inner(InnerHandle::deserialize(deserializer)?))
+    }
+}
+
+impl<T> From<&str> for Handle<T> {
+    #[inline]
+    fn from(path: &str) -> Self {
         Self {
-            inner: InnerHandle::Id(id),
-            marker: None,
+            inner: InnerHandle::Path(path.into()),
+            marker: Some(Arc::new(PhantomData)),
         }
     }
 }
 
-impl<T, P: Into<PathBuf>> From<P> for Handle<T> {
+impl<T> From<PathBuf> for Handle<T> {
     #[inline]
-    fn from(path: P) -> Self {
+    fn from(path: PathBuf) -> Self {
+        Self {
+            inner: InnerHandle::Path(path),
+            marker: Some(Arc::new(PhantomData)),
+        }
+    }
+}
+
+impl<T> From<&Path> for Handle<T> {
+    #[inline]
+    fn from(path: &Path) -> Self {
         Self {
             inner: InnerHandle::Path(path.into()),
+            marker: Some(Arc::new(PhantomData)),
+        }
+    }
+}
+
+impl<T> From<u64> for Handle<T> {
+    #[inline]
+    fn from(id: u64) -> Self {
+        Self {
+            inner: InnerHandle::Id(id),
             marker: Some(Arc::new(PhantomData)),
         }
     }
@@ -113,6 +232,11 @@ impl<T: 'static> Assets<T> {
     }
 
     #[inline]
+    pub fn contains(&self, handle: &Handle<T>) -> bool {
+        self.assets.contains_key(&handle.inner)
+    }
+
+    #[inline]
     pub fn insert_untracked(&mut self, handle: impl Into<Handle<T>>, asset: T) -> Handle<T> {
         let handle = handle.into();
 
@@ -140,6 +264,11 @@ impl<T: 'static> Assets<T> {
     }
 
     #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        self.assets.values().map(|entry| &entry.asset)
+    }
+
+    #[inline]
     pub fn clean(&mut self) {
         self.assets.retain(|_id, entry| {
             entry
@@ -152,7 +281,7 @@ impl<T: 'static> Assets<T> {
 
 impl<T: Send + Sync + 'static> System for Assets<T> {
     #[inline]
-    fn post_update(&mut self, _world: &World) {
+    fn post_update(&mut self, _world: &mut SystemWorld) {
         self.clean()
     }
 }

@@ -44,6 +44,7 @@ pub trait RenderPassTrait<'a> {
     fn set_vertex_buffer(&mut self, slot: u32, buffer_slice: BufferSlice<'a>);
     fn draw(&mut self, vertices: Range<u32>, instances: Range<u32>);
     fn draw_indexed(&mut self, indices: Range<u32>, base_vertex: i32, instances: Range<u32>);
+    fn set_scissor_rect(&mut self, x: u32, y: u32, width: u32, height: u32);
 }
 
 pub struct RenderPass<'a>(pub(crate) Box<dyn RenderPassTrait<'a> + 'a>);
@@ -86,5 +87,10 @@ impl<'a> RenderPass<'a> {
     #[inline]
     pub fn draw_indexed(&mut self, indices: Range<u32>, base_vertex: i32, instances: Range<u32>) {
         self.0.draw_indexed(indices, base_vertex, instances);
+    }
+
+    #[inline]
+    pub fn set_scissor_rect(&mut self, x: u32, y: u32, width: u32, height: u32) {
+        self.0.set_scissor_rect(x, y, width, height);
     }
 }

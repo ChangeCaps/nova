@@ -10,6 +10,8 @@ use crate::{
     buffer::{BufferSlice, BufferSliceTrait, BufferTrait},
     command_encoder::CommandEncoderTrait,
     render_pass::RenderPassTrait,
+    sampler::{Sampler, SamplerDescriptor},
+    swapchain::SwapChainTrait,
     texture::{SwapChainTextureTrait, TextureTrait},
     *,
 };
@@ -68,7 +70,7 @@ fn buffer_binding<'a>(buffer: &BufferBinding<'a>) -> wgpu::BufferBinding<'a> {
     }
 }
 
-impl SwapChain for WgpuSwapChain {
+impl SwapChainTrait for WgpuSwapChain {
     #[inline]
     fn format(&self) -> wgpu_types::TextureFormat {
         self.desc.format
@@ -80,7 +82,7 @@ impl SwapChain for WgpuSwapChain {
     }
 
     #[inline]
-    fn recreate(&mut self, instance: &dyn Instance, width: u32, height: u32) {
+    fn recreate(&mut self, instance: &Instance, width: u32, height: u32) {
         self.desc.width = width;
         self.desc.height = height;
         self.swapchain = instance
@@ -102,7 +104,7 @@ impl SwapChain for WgpuSwapChain {
     }
 }
 
-impl Instance for WgpuInstance {
+impl InstanceTrait for WgpuInstance {
     #[inline]
     fn create_buffer(&self, desc: &wgpu_types::BufferDescriptor<Option<&str>>) -> Buffer {
         let buffer = self.device.create_buffer(desc);
@@ -125,6 +127,37 @@ impl Instance for WgpuInstance {
     fn create_texture(&self, desc: &wgpu_types::TextureDescriptor<Option<&str>>) -> Texture {
         let texture = self.device.create_texture(desc);
         Texture(Box::new(texture))
+    }
+
+    #[inline]
+    fn create_texture_with_data(
+        &self,
+        desc: &wgpu_types::TextureDescriptor<Option<&str>>,
+        data: &[u8],
+    ) -> Texture {
+        let texture = self
+            .device
+            .create_texture_with_data(&self.queue, desc, data);
+        Texture(Box::new(texture))
+    }
+
+    #[inline]
+    fn create_sampler(&self, desc: &SamplerDescriptor) -> Sampler {
+        let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
+            label: desc.label,
+            address_mode_u: desc.address_mode_u,
+            address_mode_v: desc.address_mode_v,
+            address_mode_w: desc.address_mode_w,
+            mag_filter: desc.mag_filter,
+            min_filter: desc.min_filter,
+            mipmap_filter: desc.mipmap_filter,
+            lod_min_clamp: desc.lod_min_clamp,
+            lod_max_clamp: desc.lod_max_clamp,
+            compare: desc.compare,
+            anisotropy_clamp: desc.anisotropy_clamp,
+            border_color: desc.border_color,
+        });
+        Sampler(Box::new(sampler))
     }
 
     #[inline]
@@ -156,6 +189,9 @@ impl Instance for WgpuInstance {
                 resource: match &entry.resource {
                     BindingResource::Buffer(buffer) => {
                         wgpu::BindingResource::Buffer(buffer_binding(buffer))
+                    }
+                    &BindingResource::Sampler(sampler) => {
+                        wgpu::BindingResource::Sampler(sampler.0.downcast_ref().unwrap())
                     }
                     BindingResource::TextureView(view) => {
                         wgpu::BindingResource::TextureView(view.any().downcast_ref().unwrap())
@@ -397,6 +433,11 @@ impl<'a> RenderPassTrait<'a> for wgpu::RenderPass<'a> {
         instances: std::ops::Range<u32>,
     ) {
         self.draw_indexed(indices, base_vertex, instances);
+    }
+
+    #[inline]
+    fn set_scissor_rect(&mut self, x: u32, y: u32, width: u32, height: u32) {
+        self.set_scissor_rect(x, y, width, height);
     }
 }
 

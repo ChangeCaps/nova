@@ -1,56 +1,66 @@
 use std::{
-    any::{Any, TypeId},
+    any::{type_name, Any, TypeId},
     collections::BTreeMap,
-    sync::RwLock,
 };
 
-use crate::{node::Node, world::World, Read, Write};
+use crossbeam::sync::ShardedLock;
+
+use crate::{node::Node, world::ComponentWorld, Read, Write};
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
     fn type_id(&self) -> TypeId;
+    fn type_name(&self) -> &'static str;
 }
 
 impl<T: Any> AsAny for T {
+    #[inline]
     fn as_any(&self) -> &dyn Any {
         self
     }
 
+    #[inline]
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 
+    #[inline]
     fn type_id(&self) -> TypeId {
         TypeId::of::<Self>()
+    }
+
+    #[inline]
+    fn type_name(&self) -> &'static str {
+        type_name::<Self>()
     }
 }
 
 #[allow(unused)]
 pub trait Component: AsAny + Send + Sync + 'static {
     #[inline]
-    fn init(&mut self, node: &Node, world: &World) {}
+    fn init(&mut self, node: &Node, world: &mut ComponentWorld) {}
 
     #[inline]
-    fn pre_update(&mut self, node: &Node, world: &World) {
-        node.mark_no_pre_update(AsAny::type_id(self));
+    fn pre_update(&mut self, node: &Node, world: &mut ComponentWorld) {
+        node.mark_no_pre_update(AsAny::type_name(self));
     }
 
     #[inline]
-    fn update(&mut self, node: &Node, world: &World) {
-        node.mark_no_update(AsAny::type_id(self));
+    fn update(&mut self, node: &Node, world: &mut ComponentWorld) {
+        node.mark_no_update(AsAny::type_name(self));
     }
 
     #[inline]
-    fn post_update(&mut self, node: &Node, world: &World) {
-        node.mark_no_post_update(AsAny::type_id(self));
+    fn post_update(&mut self, node: &Node, world: &mut ComponentWorld) {
+        node.mark_no_post_update(AsAny::type_name(self));
     }
 }
 
 /// A collection of [`Component`]s.
 #[derive(Default)]
 pub struct Components {
-    pub(crate) components: BTreeMap<TypeId, RwLock<Box<dyn Component>>>,
+    pub(crate) components: BTreeMap<&'static str, ShardedLock<Box<dyn Component>>>,
 }
 
 impl Components {
@@ -62,55 +72,62 @@ impl Components {
     #[inline]
     pub fn insert<T: Component>(&mut self, component: T) {
         self.components
-            .insert(component.type_id(), RwLock::new(Box::new(component)));
+            .insert(type_name::<T>(), ShardedLock::new(Box::new(component)));
     }
 
     #[inline]
-    pub fn get<T: Component>(&self) -> Option<Read<Box<T>>> {
-        if let Some(lock) = self.components.get(&TypeId::of::<T>()) {
+    pub unsafe fn insert_raw(&mut self, name: &'static str, component: Box<dyn Component>) {
+        self.components.insert(name, ShardedLock::new(component));
+    }
+
+    #[inline]
+    pub fn get_mut<T: Component>(&mut self) -> Option<&mut T> {
+        let component = self
+            .components
+            .get_mut(&type_name::<T>())?
+            .get_mut()
+            .ok()?
+            .as_mut();
+
+        Some(unsafe { &mut *(component as *mut _ as *mut _) })
+    }
+
+    #[inline]
+    pub fn read<T: Component>(&self) -> Option<Read<T>> {
+        if let Some(lock) = self.components.get(type_name::<T>()) {
             let read = lock.read().ok()?;
 
             // SAFETY: we know that type ids are equal so transmuting is safe.
-            Some(unsafe { std::mem::transmute(read) })
+            Some(Read(unsafe { std::mem::transmute(read) }))
         } else {
             None
         }
     }
 
     #[inline]
-    pub fn get_mut<T: Component>(&self) -> Option<Write<Box<T>>> {
-        if let Some(lock) = self.components.get(&TypeId::of::<T>()) {
+    pub fn write<T: Component>(&self) -> Option<Write<T>> {
+        if let Some(lock) = self.components.get(type_name::<T>()) {
             let write = lock.write().ok()?;
 
             // SAFETY: we know that type ids are equal so transmuting is safe.
-            Some(unsafe { std::mem::transmute(write) })
+            Some(Write(unsafe { std::mem::transmute(write) }))
         } else {
             None
         }
     }
 
     #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = Option<Read<Box<dyn Component>>>> {
-        self.components.iter().map(|(_, lock)| lock.read().ok())
-    }
-
-    #[inline]
-    pub fn iter_mut(&self) -> impl Iterator<Item = Option<Write<Box<dyn Component>>>> {
-        self.components.iter().map(|(_, lock)| lock.write().ok())
-    }
-
-    #[inline]
-    pub fn iter_filtered(&self) -> impl Iterator<Item = Read<Box<dyn Component>>> {
+    pub fn iter(&self) -> impl Iterator<Item = (&str, Read<dyn Component>)> {
         self.components
             .iter()
-            .filter_map(|(_, lock)| lock.read().ok())
+            .map(|(name, lock)| (*name, Read(lock.read().unwrap())))
     }
 
     #[inline]
-    pub fn iter_mut_filtered(&self) -> impl Iterator<Item = Write<Box<dyn Component>>> {
+    pub fn iter_mut(&self) -> impl Iterator<Item = Write<dyn Component>> {
         self.components
             .iter()
-            .filter_map(|(_, lock)| lock.write().ok())
+            .map(|(_, lock)| Write(lock.write().unwrap()))
     }
 }
 
@@ -129,8 +146,8 @@ mod tests {
 
         components.insert(TestComponent(3));
 
-        let component = components.get::<TestComponent>().unwrap();
+        let component = components.read::<TestComponent>().unwrap();
 
-        assert_eq!(*component, Box::new(TestComponent(3)));
+        assert_eq!(*component, TestComponent(3));
     }
 }

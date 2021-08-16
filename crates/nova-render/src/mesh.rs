@@ -1,10 +1,13 @@
 use bytemuck::{cast_slice, Pod};
 use nova_wgpu::Buffer;
 
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct MeshData {
     pub vertices: Vec<u8>,
     pub indices: Vec<u32>,
+    #[cfg_attr(feature = "serialize", serde(skip))]
     pub vertex_buffer: Option<Buffer>,
+    #[cfg_attr(feature = "serialize", serde(skip))]
     pub index_buffer: Option<Buffer>,
 }
 

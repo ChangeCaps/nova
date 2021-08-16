@@ -13,8 +13,11 @@ nova-assets = { path = "crates/nova-assets" }
 nova-core = { path = "crates/nova-core" }
 nova-wgpu = { path = "crates/nova-wgpu" }
 nova-derive = { path = "crates/nova-derive" }
+nova-input = { path = "crates/nova-input" }
 nova-render = { path = "crates/nova-render" }
-nova-transform = { path = "crates/nova-transform" }
+nova-type = { path = "crates/nova-type", features = ["serialize"] } 
+nova-scene = { path = "crates/nova-scene" }
+nova-transform = { path = "crates/nova-transform", features = ["serde"] }
 nova-window = { path = "crates/nova-window" }
 glam = { version = "0.17.3", features = ["bytemuck"] }
 

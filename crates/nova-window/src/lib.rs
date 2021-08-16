@@ -2,7 +2,6 @@
 pub mod winit_impl;
 
 use glam::UVec2;
-use nova_core::system::System;
 
 pub trait Window: Send + Sync + 'static {
     fn request_redraw(&self);
@@ -10,17 +9,20 @@ pub trait Window: Send + Sync + 'static {
     fn size(&self) -> UVec2;
 }
 
-pub struct WindowSystem {
-    pub window: Box<dyn Window>,
+pub struct Windows {
+    window: Box<dyn Window>,
 }
 
-impl WindowSystem {
+impl Windows {
     #[inline]
     pub fn new(window: impl Window) -> Self {
         Self {
             window: Box::new(window),
         }
     }
-}
 
-impl System for WindowSystem {}
+    #[inline]
+    pub fn primary(&self) -> &dyn Window {
+        self.window.as_ref()
+    }
+}

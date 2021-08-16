@@ -6,5 +6,6 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-glam = "0.17.3"
+glam = { version = "0.17", features = ["serde"] }
 nova-core = { path = "../nova-core" }
+serde = { version = "1.0", features = ["derive"], optional = true }

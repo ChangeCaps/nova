@@ -1,21 +1,49 @@
-use std::any::Any;
+use std::{any::Any, ops::Deref, sync::Arc};
 
 use crate::{
     bind_group::BindGroupLayoutDescriptor,
     buffer::Buffer,
     command_encoder::CommandEncoder,
     pipeline::{ShaderModule, ShaderModuleDescriptor},
+    sampler::{Sampler, SamplerDescriptor},
     texture::Texture,
     BindGroup, BindGroupDescriptor, BindGroupLayout, BufferInitDescriptor, PipelineLayout,
     PipelineLayoutDescriptor, RenderPipeline, RenderPipelineDescriptor,
 };
 
-pub trait Instance {
+#[derive(Clone)]
+pub struct Instance(pub(crate) Arc<dyn InstanceTrait>);
+
+impl<T: InstanceTrait> From<T> for Instance {
+    #[inline]
+    fn from(inner: T) -> Self {
+        Instance(Arc::new(inner))
+    }
+}
+
+impl Deref for Instance {
+    type Target = dyn InstanceTrait;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref()
+    }
+}
+
+pub trait InstanceTrait: Send + Sync + 'static {
     fn create_buffer(&self, desc: &wgpu_types::BufferDescriptor<Option<&str>>) -> Buffer;
 
     fn create_buffer_init(&self, desc: &BufferInitDescriptor) -> Buffer;
 
     fn create_texture(&self, desc: &wgpu_types::TextureDescriptor<Option<&str>>) -> Texture;
+
+    fn create_texture_with_data(
+        &self,
+        desc: &wgpu_types::TextureDescriptor<Option<&str>>,
+        data: &[u8],
+    ) -> Texture;
+
+    fn create_sampler(&self, desc: &SamplerDescriptor) -> Sampler;
 
     fn create_command_encoder(
         &self,

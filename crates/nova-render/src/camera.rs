@@ -3,9 +3,8 @@ use nova_core::{
     component::Component,
     node::{Node, NodeId},
     system::System,
-    world::World,
+    world::ComponentWorld,
 };
-use nova_window::WindowSystem;
 
 #[derive(Clone, Debug, Default)]
 pub struct CameraSystem {
@@ -15,16 +14,18 @@ pub struct CameraSystem {
 impl System for CameraSystem {}
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct MainCamera;
 
 impl Component for MainCamera {
     #[inline]
-    fn init(&mut self, node: &Node, world: &World) {
+    fn init(&mut self, node: &Node, world: &mut ComponentWorld) {
         world.system_mut::<CameraSystem>().unwrap().main = Some(node.id());
     }
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum Camera {
     Perspective {
         fov: f32,
@@ -46,7 +47,7 @@ impl Camera {
     #[inline]
     pub fn set_aspect(&mut self, new_aspect: f32) {
         match self {
-            Self::Perspective { aspect, .. } => *aspect = new_aspect, 
+            Self::Perspective { aspect, .. } => *aspect = new_aspect,
             _ => {}
         }
     }
@@ -70,13 +71,4 @@ impl Camera {
     }
 }
 
-impl Component for Camera {
-    #[inline]
-    fn pre_update(&mut self, _node: &Node, world: &World) {
-        let window = world.system::<WindowSystem>().unwrap();
-        let size = window.window.size();
-        let aspect = size.x as f32 / size.y as f32;
-
-        self.set_aspect(aspect);
-    }
-}
+impl Component for Camera {}

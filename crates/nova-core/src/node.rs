@@ -1,20 +1,21 @@
-use std::{any::TypeId, collections::BTreeSet};
+use std::{any::type_name, collections::BTreeSet};
 
 use crossbeam::queue::SegQueue;
 
 use crate::{
     component::{Component, Components},
-    world::World,
+    world::ComponentWorld,
     Read, Write,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd, Ord, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NodeId(pub u64);
 
 enum Command {
-    MarkNoPreUpdate(TypeId),
-    MarkNoUpdate(TypeId),
-    MarkNoPostUpdate(TypeId),
+    MarkNoPreUpdate(&'static str),
+    MarkNoUpdate(&'static str),
+    MarkNoPostUpdate(&'static str),
 }
 
 pub struct Node {
@@ -22,9 +23,9 @@ pub struct Node {
     pub components: Components,
     pub id: Option<NodeId>,
     commands: SegQueue<Command>,
-    pre_update: BTreeSet<TypeId>,
-    update: BTreeSet<TypeId>,
-    post_update: BTreeSet<TypeId>,
+    pre_update: BTreeSet<&'static str>,
+    update: BTreeSet<&'static str>,
+    post_update: BTreeSet<&'static str>,
 }
 
 impl Node {
@@ -49,52 +50,65 @@ impl Node {
     #[inline]
     pub fn add_component<T: Component>(&mut self, component: T) {
         self.components.insert(component);
-        self.pre_update.insert(TypeId::of::<T>());
-        self.update.insert(TypeId::of::<T>());
-        self.post_update.insert(TypeId::of::<T>());
+        self.pre_update.insert(type_name::<T>());
+        self.update.insert(type_name::<T>());
+        self.post_update.insert(type_name::<T>());
+    }
+
+    #[inline]
+    pub unsafe fn insert_raw(&mut self, name: &'static str, component: Box<dyn Component>) {
+        self.components.insert_raw(name, component);
+        self.pre_update.insert(name);
+        self.update.insert(name);
+        self.post_update.insert(name);
     }
 
     #[inline]
     pub fn contains<T: Component>(&self) -> bool {
-        self.components.components.contains_key(&TypeId::of::<T>())
+        self.components.components.contains_key(type_name::<T>())
     }
 
     #[inline]
-    pub fn component<T: Component>(&self) -> Option<Read<Box<T>>> {
-        self.components.get::<T>()
-    }
-
-    #[inline]
-    pub fn component_mut<'a, T: Component>(&'a self) -> Option<Write<'a, Box<T>>> {
+    pub fn component_mut<T: Component>(&mut self) -> Option<&mut T> {
         self.components.get_mut::<T>()
+    }
+
+    #[inline]
+    pub fn read_component<T: Component>(&self) -> Option<Read<T>> {
+        self.components.read::<T>()
+    }
+
+    #[inline]
+    pub fn write_component<'a, T: Component>(&'a self) -> Option<Write<'a, T>> {
+        self.components.write::<T>()
     }
 
     /// Calls init on add [`Component`]s.
     #[inline]
-    pub fn init(&self, world: &World) {
-        for mut component in self.components.iter_mut_filtered() {
+    pub fn init(&self, world: &mut ComponentWorld) {
+        for mut component in self.components.iter_mut() {
             component.init(self, world);
         }
     }
 
     #[inline]
-    pub(crate) fn mark_no_pre_update(&self, id: TypeId) {
+    pub(crate) fn mark_no_pre_update(&self, id: &'static str) {
         self.commands.push(Command::MarkNoPreUpdate(id));
     }
 
     #[inline]
-    pub(crate) fn mark_no_update(&self, id: TypeId) {
+    pub(crate) fn mark_no_update(&self, id: &'static str) {
         self.commands.push(Command::MarkNoUpdate(id));
     }
 
     #[inline]
-    pub(crate) fn mark_no_post_update(&self, id: TypeId) {
+    pub(crate) fn mark_no_post_update(&self, id: &'static str) {
         self.commands.push(Command::MarkNoPostUpdate(id));
     }
 
     /// Calls update on add [`Component`]s.
     #[inline]
-    pub fn pre_update(&self, world: &World) {
+    pub fn pre_update(&self, world: &mut ComponentWorld) {
         for id in &self.pre_update {
             if let Some(component) = self.components.components.get(id) {
                 component.write().unwrap().pre_update(self, world);
@@ -104,7 +118,7 @@ impl Node {
 
     /// Calls update on add [`Component`]s.
     #[inline]
-    pub fn update(&self, world: &World) {
+    pub fn update(&self, world: &mut ComponentWorld) {
         for id in &self.update {
             if let Some(component) = self.components.components.get(id) {
                 component.write().unwrap().update(self, world);
@@ -114,7 +128,7 @@ impl Node {
 
     /// Calls update on add [`Component`]s.
     #[inline]
-    pub fn post_update(&self, world: &World) {
+    pub fn post_update(&self, world: &mut ComponentWorld) {
         for id in &self.post_update {
             if let Some(component) = self.components.components.get(id) {
                 component.write().unwrap().post_update(self, world);

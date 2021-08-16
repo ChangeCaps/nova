@@ -1,32 +1,28 @@
-use std::{
-    any::{Any, TypeId},
-    collections::BTreeMap,
-    sync::RwLock,
-};
+use std::{any::type_name, collections::BTreeMap};
 
-use crossbeam::queue::SegQueue;
+use crossbeam::{queue::SegQueue, sync::ShardedLock};
 
-use crate::{world::World, Read, Write};
+use crate::{component::AsAny, world::SystemWorld, Read, Write};
 
 #[allow(unused)]
-pub trait System: Send + Sync + 'static {
+pub trait System: AsAny + Send + Sync + 'static {
     #[inline]
-    fn init(&mut self, world: &World) {}
+    fn init(&mut self, world: &mut SystemWorld) {}
 
     #[inline]
-    fn pre_update(&mut self, world: &World) {}
+    fn pre_update(&mut self, world: &mut SystemWorld) {}
 
     #[inline]
-    fn update(&mut self, world: &World) {}
+    fn update(&mut self, world: &mut SystemWorld) {}
 
     #[inline]
-    fn post_update(&mut self, world: &World) {}
+    fn post_update(&mut self, world: &mut SystemWorld) {}
 }
 
 #[derive(Default)]
 pub struct Systems {
-    queue: SegQueue<(TypeId, Box<dyn System>)>,
-    pub(crate) systems: BTreeMap<TypeId, RwLock<Box<dyn System>>>,
+    queue: SegQueue<(&'static str, Box<dyn System>)>,
+    pub(crate) systems: BTreeMap<&'static str, ShardedLock<Box<dyn System>>>,
 }
 
 impl Systems {
@@ -37,58 +33,72 @@ impl Systems {
 
     #[inline]
     pub fn insert<T: System>(&self, system: T) {
-        self.queue.push((system.type_id(), Box::new(system)));
+        self.queue.push((type_name::<T>(), Box::new(system)));
+    }
+
+    #[inline]
+    pub unsafe fn insert_raw(&self, name: &'static str, system: Box<dyn System>) {
+        self.queue.push((name, system));
     }
 
     #[inline]
     pub fn contains<T: System>(&self) -> bool {
-        self.systems.contains_key(&TypeId::of::<T>())
+        self.systems.contains_key(&type_name::<T>())
     }
 
     #[inline]
-    pub fn get<T: System>(&self) -> Option<Read<Box<T>>> {
-        if let Some(lock) = self.systems.get(&TypeId::of::<T>()) {
+    pub fn len(&self) -> usize {
+        self.systems.len()
+    }
+
+    #[inline]
+    pub fn get_mut<T: System>(&mut self) -> Option<&mut T> {
+        let system = self
+            .systems
+            .get_mut(&type_name::<T>())?
+            .get_mut()
+            .ok()?
+            .as_mut();
+
+        Some(unsafe { &mut *(system as *mut _ as *mut _) })
+    }
+
+    #[inline]
+    pub fn read<T: System>(&self) -> Option<Read<T>> {
+        if let Some(lock) = self.systems.get(&type_name::<T>()) {
             let read = lock.read().ok()?;
 
             // SAFETY: we know that type ids are equal so transmuting is safe.
-            Some(unsafe { std::mem::transmute(read) })
+            Some(Read(unsafe { std::mem::transmute(read) }))
         } else {
             None
         }
     }
 
     #[inline]
-    pub fn get_mut<T: System>(&self) -> Option<Write<Box<T>>> {
-        if let Some(lock) = self.systems.get(&TypeId::of::<T>()) {
+    pub fn write<T: System>(&self) -> Option<Write<T>> {
+        if let Some(lock) = self.systems.get(&type_name::<T>()) {
             let write = lock.write().ok()?;
 
             // SAFETY: we know that type ids are equal so transmuting is safe.
-            Some(unsafe { std::mem::transmute(write) })
+            Some(Write(unsafe { std::mem::transmute(write) }))
         } else {
             None
         }
     }
 
     #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = Option<Read<Box<dyn System>>>> {
-        self.systems.iter().map(|(_, lock)| lock.read().ok())
-    }
-
-    #[inline]
-    pub fn iter_mut(&self) -> impl Iterator<Item = Option<Write<Box<dyn System>>>> {
-        self.systems.iter().map(|(_, lock)| lock.write().ok())
-    }
-
-    #[inline]
-    pub fn iter_filtered(&self) -> impl Iterator<Item = Read<Box<dyn System>>> {
-        self.systems.iter().filter_map(|(_, lock)| lock.read().ok())
-    }
-
-    #[inline]
-    pub fn iter_mut_filtered(&self) -> impl Iterator<Item = Write<Box<dyn System>>> {
+    pub fn iter(&self) -> impl Iterator<Item = (&str, Read<dyn System>)> {
         self.systems
             .iter()
-            .filter_map(|(_, lock)| lock.write().ok())
+            .map(|(name, lock)| (*name, Read(lock.read().unwrap())))
+    }
+
+    #[inline]
+    pub fn iter_mut(&self) -> impl Iterator<Item = Write<dyn System>> {
+        self.systems
+            .iter()
+            .map(|(_, lock)| Write(lock.write().unwrap()))
     }
 
     #[inline]
