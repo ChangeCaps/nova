@@ -5,7 +5,7 @@ use nova_core::{
     system::System,
     world::{SystemWorld, World},
 };
-use nova_input::{key::Key, mouse_button::MouseButton, Input, Mouse};
+use nova_input::{Input, Mouse, TextInput, key::Key, mouse_button::MouseButton};
 use nova_render::render_target::RenderTarget;
 use nova_wgpu::*;
 use nova_window::Windows;
@@ -268,6 +268,14 @@ impl<F: Fn(&CtxRef, &mut SystemWorld) + Send + Sync + 'static> System for EguiSy
                     pressed: false,
                     modifiers,
                 });
+            }
+
+            let input = world.read_resource::<TextInput>().unwrap();
+            
+            for c in &input.chars {
+                if !c.is_control() {
+                    self.raw_input.events.push(Event::Text(c.to_string()));
+                }
             }
 
             self.raw_input.events.push(Event::PointerMoved(mouse_pos));
