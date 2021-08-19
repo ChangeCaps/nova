@@ -4,7 +4,7 @@ pub mod mouse_button;
 use glam::Vec2;
 use key::Key;
 use mouse_button::MouseButton;
-use nova_core::{plugin::Plugin, world::World};
+use nova_core::{plugin::Plugin, stage, systems::Runnable, AppBuilder, SystemBuilder};
 use std::collections::BTreeSet;
 
 #[derive(Clone)]
@@ -108,14 +108,32 @@ pub struct Mouse {
     pub position: Vec2,
 }
 
+pub fn input_system() -> impl Runnable {
+    SystemBuilder::new("input_system")
+        .write_resource::<Input<Key>>()
+        .write_resource::<Input<MouseButton>>()
+        .write_resource::<TextInput>()
+        .build(
+            |_commands, _world, (key_input, mouse_input, text_input), _queries| {
+                key_input.clear();
+                mouse_input.clear();
+                text_input.chars.clear();
+            },
+        )
+}
+
 pub struct InputPlugin;
 
 impl Plugin for InputPlugin {
     #[inline]
-    fn build(self, world: &mut World) {
-        world.register_resource::<Input<Key>>();
-        world.register_resource::<Input<MouseButton>>();
-        world.register_resource::<TextInput>();
-        world.register_resource::<Mouse>();
+    fn build(self, app: &mut AppBuilder) {
+        app.register_resource::<Input<Key>>();
+        app.register_resource::<Input<MouseButton>>();
+        app.register_resource::<TextInput>();
+        app.register_resource::<Mouse>();
+
+        app.add_system_to_stage(stage::END, input_system());
+        #[cfg(feature = "editor")]
+        app.add_editor_system_to_stage(stage::END, input_system());
     }
 }

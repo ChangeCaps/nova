@@ -1,45 +1,42 @@
 use bytemuck::{bytes_of, cast_slice};
-use glam::Vec3;
-use nova_core::world::SystemWorld;
+use nova_core::{App, IntoQuery, Resources, World};
 use nova_transform::component::GlobalTransform;
 use nova_wgpu::{Buffer, BufferDescriptor, BufferUsage, Instance};
 
 use crate::{
     light::{AmbientLight, PointLight, PointLightRaw},
-    render_stage::{RenderData, RenderStage, Target},
+    render_node::{RenderData, RenderNode, Target},
 };
 
 #[derive(Default)]
-pub struct LightStage {
+pub struct LightNode {
     pub point_lights: Vec<PointLightRaw>,
 }
 
-impl LightStage {
+impl LightNode {
     pub const BUFFER: &'static str = "light_stage_buffer";
 }
 
-impl RenderStage for LightStage {
-    fn render(&mut self, world: &mut SystemWorld, _target: &Target, data: &mut RenderData) {
+impl RenderNode for LightNode {
+    fn run(
+        &mut self,
+        world: &World,
+        resources: &Resources,
+        _target: &Target,
+        data: &mut RenderData,
+    ) {
         self.point_lights.clear();
 
-        for node in world.nodes() {
-            if let Some(point_light) = node.read_component::<PointLight>() {
-                let position = if let Some(transform) = node.read_component::<GlobalTransform>() {
-                    transform.translation
-                } else {
-                    Vec3::ZERO
-                };
-
-                self.point_lights.push(PointLightRaw {
-                    position: position.into(),
-                    intensity: point_light.intensity,
-                    color: point_light.color.into(),
-                });
-            }
+        for (point_light, transform) in <(&PointLight, &GlobalTransform)>::query().iter(world) {
+            self.point_lights.push(PointLightRaw {
+                position: transform.translation.into(),
+                intensity: point_light.intensity,
+                color: point_light.color.into(),
+            });
         }
 
-        let ambient = world.resource_mut::<AmbientLight>().unwrap().clone();
-        let instance = world.read_resource::<Instance>().unwrap();
+        let ambient = resources.get::<AmbientLight>().unwrap();
+        let instance = resources.get::<Instance>().unwrap();
 
         let mut point_light_data = bytes_of(&ambient.color).to_vec();
         point_light_data.append(&mut bytes_of(&ambient.intensity).to_vec());

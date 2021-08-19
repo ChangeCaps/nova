@@ -1,99 +1,73 @@
-use std::{any::TypeId, collections::BTreeMap};
+use std::collections::HashMap;
 
-use crate::render_stage::{RenderData, RenderStage, Target};
-use nova_core::{system::System, world::SystemWorld};
+use nova_core::{App, Resources, World};
 
-struct Stage {
-    render: Box<dyn RenderStage>,
-    prev: Option<TypeId>,
-    next: Option<TypeId>,
-}
+use crate::{
+    camera_node::CameraNode,
+    depth_node::DepthNode,
+    light_node::LightNode,
+    msaa_node::MsaaNode,
+    render_node::{RenderData, RenderNode, Target},
+};
 
-pub struct RendererSystem {
+pub struct Renderer {
     data: RenderData,
-    first: Option<TypeId>,
-    last: Option<TypeId>,
-    stages: BTreeMap<TypeId, Stage>,
+    order: Vec<String>,
+    stages: HashMap<String, Vec<Box<dyn RenderNode>>>,
 }
 
-impl Default for RendererSystem {
+impl Default for Renderer {
     #[inline]
     fn default() -> Self {
         Self {
             data: RenderData::default(),
-            first: None,
-            last: None,
-            stages: BTreeMap::new(),
+            order: Vec::new(),
+            stages: HashMap::new(),
         }
     }
 }
 
-impl RendererSystem {
-    #[inline]
-    pub fn add_stage<T: RenderStage>(&mut self, stage: T) {
-        let id = TypeId::of::<T>();
+impl Renderer {
+    pub const PRE_RENDER: &'static str = "pre_render";
+    pub const RENDER: &'static str = "render";
 
-        if let Some(last) = &mut self.last {
-            self.stages.get_mut(last).unwrap().next = Some(id);
-            self.stages.insert(
-                id,
-                Stage {
-                    render: Box::new(stage),
-                    prev: Some(*last),
-                    next: None,
-                },
-            );
-            *last = id;
-        } else {
-            self.first = Some(id);
-            self.last = Some(id);
-            self.stages.insert(
-                id,
-                Stage {
-                    render: Box::new(stage),
-                    prev: None,
-                    next: None,
-                },
-            );
-        }
+    #[inline]
+    pub fn new() -> Self {
+        let mut renderer = Self::default();
+
+        renderer.push_stage(Self::PRE_RENDER);
+        renderer.push_stage(Self::RENDER);
+
+        renderer
     }
 
     #[inline]
-    pub fn add_stage_after<T: RenderStage, U: RenderStage>(&mut self, stage: T) {
-        let id = TypeId::of::<T>();
-        let before_id = TypeId::of::<U>();
+    pub fn add_default_nodes(&mut self) {
+        self.add_node_to_stage(Self::PRE_RENDER, MsaaNode);
+        self.add_node_to_stage(Self::PRE_RENDER, DepthNode);
+        self.add_node_to_stage(Self::PRE_RENDER, LightNode::default());
+        self.add_node_to_stage(Self::PRE_RENDER, CameraNode);
+    }
 
-        if let Some(before) = self.stages.get(&before_id) {
-            let after_id = before.next;
-            if let Some(after) = &after_id {
-                self.stages.get_mut(after).unwrap().prev = Some(id);
+    #[inline]
+    pub fn render_view(&mut self, world: &World, resources: &Resources, target: &Target) {
+        for stage in &self.order {
+            for node in self.stages.get_mut(stage).unwrap() {
+                node.run(world, resources, target, &mut self.data);
             }
-
-            self.stages.get_mut(&before_id).unwrap().next = Some(id);
-            self.stages.insert(
-                id,
-                Stage {
-                    render: Box::new(stage),
-                    prev: Some(before_id),
-                    next: after_id,
-                },
-            );
-        } else {
-            self.add_stage(stage);
         }
     }
 
     #[inline]
-    pub fn render_view(&mut self, world: &mut SystemWorld, target: &Target) {
-        let mut next = self.first;
+    pub fn push_stage(&mut self, stage: impl Into<String>) {
+        let name = stage.into();
 
-        while let Some(id) = next {
-            let stage = self.stages.get_mut(&id).unwrap();
-            next = stage.next;
+        self.order.push(name.clone());
+        self.stages.insert(name, Vec::new());
+    }
 
-            stage.render.render(world, target, &mut self.data);
-        }
+    #[inline]
+    pub fn add_node_to_stage(&mut self, stage: &str, node: impl RenderNode) {
+        self.stages.get_mut(stage).unwrap().push(Box::new(node));
     }
 }
-
-impl System for RendererSystem {}

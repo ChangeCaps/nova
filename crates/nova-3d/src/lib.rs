@@ -3,19 +3,14 @@ pub mod stage;
 
 use glam::{Vec2, Vec3};
 use nova_assets::{Assets, Handle};
-use nova_core::{
-    plugin::Plugin,
-    system::System,
-    world::{SystemWorld, World},
-};
+use nova_core::{plugin::Plugin, AppBuilder};
 use nova_render::{
-    camera_stage::CameraStage, color::Color, depth_stage::DepthStage, light_stage::LightStage,
-    msaa_stage::MsaaStage, render_settings::RenderSettings, render_target::RenderTarget,
-    renderer::RendererSystem, Vertex,
+    color::Color, render_settings::RenderSettings, render_target::RenderTarget, renderer::Renderer,
+    Vertex,
 };
 use nova_wgpu::*;
 
-use crate::stage::D3PassStage;
+use crate::stage::D3PassNode;
 
 pub const PBR_PIPELINE_HANDLE: Handle<RenderPipeline> = Handle::from_u64(1246823428346);
 
@@ -35,19 +30,16 @@ unsafe impl bytemuck::Pod for Vertex3d {}
 pub struct D3System {
     pub msaa: u32,
 }
+pub struct D3Plugin;
 
-impl System for D3System {
-    fn init(&mut self, world: &mut SystemWorld) {
-        let instance = world.read_resource::<Instance>().unwrap();
-        let target = world.read_resource::<RenderTarget>().unwrap();
-        let mut render_system = world.write_system::<RendererSystem>().unwrap();
-        let settings = world.read_resource::<RenderSettings>().unwrap();
+impl Plugin for D3Plugin {
+    fn build(self, app: &mut AppBuilder) {
+        let instance = app.resources.get::<Instance>().unwrap();
+        let target = app.resources.get::<RenderTarget>().unwrap();
+        let mut render_system = app.resources.get_mut::<Renderer>().unwrap();
+        let settings = app.resources.get::<RenderSettings>().unwrap();
 
-        render_system.add_stage(DepthStage);
-        render_system.add_stage(MsaaStage);
-        render_system.add_stage(CameraStage);
-        render_system.add_stage(LightStage::default());
-        render_system.add_stage(D3PassStage::default());
+        render_system.add_node_to_stage(Renderer::RENDER, D3PassNode::default());
 
         let shader_module = instance.create_shader_module(&ShaderModuleDescriptor {
             label: Some("pbr"),
@@ -149,17 +141,9 @@ impl System for D3System {
             }),
         });
 
-        world
-            .write_system::<Assets<RenderPipeline>>()
+        app.resources
+            .get_mut::<Assets<RenderPipeline>>()
             .unwrap()
             .insert_untracked(PBR_PIPELINE_HANDLE, pipeline);
-    }
-}
-
-pub struct D3Plugin;
-
-impl Plugin for D3Plugin {
-    fn build(self, world: &mut World) {
-        world.register_system::<D3System>();
     }
 }

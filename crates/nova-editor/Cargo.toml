@@ -6,18 +6,17 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-nova-assets = { path = "../nova-assets" }
-nova-core = { path = "../nova-core" }
+nova-assets = { path = "../nova-assets", features = ["editor"] }
+nova-core = { path = "../nova-core", features = ["editor"] }
 nova-engine = { path = "../nova-engine" }
-nova-input = { path = "../nova-input" }
-nova-render = { path = "../nova-render", features = ["serialize"] }
-nova-transform = { path = "../nova-transform", features = ["serde"] }
-nova-type = { path = "../nova-type", features = ["serialize"] }
-nova-scene = { path = "../nova-scene" }
+nova-input = { path = "../nova-input", features = ["editor"] }
+nova-render = { path = "../nova-render", features = ["editor"] }
+nova-transform = { path = "../nova-transform", features = ["editor"] }
 nova-wgpu = { path = "../nova-wgpu" }
 nova-window = { path = "../nova-window" }
 serde = { version = "1.0", features = ["derive"] }
-egui = "0.13"
+erased-serde = "0.3"
+egui = "0.13" 
 bytemuck = "1.7"
 libloading = "0.7"
 clap = "3.0.0-beta.2"

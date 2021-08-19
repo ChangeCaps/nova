@@ -85,7 +85,11 @@ impl Project {
 
     #[inline]
     pub fn main_scene_path(&self) -> Option<PathBuf> {
-        Some(Path::new(self.game.as_ref()?.main_scene.as_ref()?).iter().collect())
+        Some(
+            Path::new(self.game.as_ref()?.main_scene.as_ref()?)
+                .iter()
+                .collect(),
+        )
     }
 
     #[inline]

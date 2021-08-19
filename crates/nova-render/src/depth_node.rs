@@ -1,23 +1,29 @@
-use nova_core::world::SystemWorld;
+use nova_core::{App, Resources, World};
 use nova_wgpu::{Instance, TextureFormat};
 
 use crate::{
+    render_node::{RenderData, RenderNode, Target},
     render_settings::RenderSettings,
-    render_stage::{RenderData, RenderStage, Target},
     render_texture::RenderTexture,
 };
 
-pub struct DepthStage;
+pub struct DepthNode;
 
-impl DepthStage {
+impl DepthNode {
     pub const TEXTURE: &'static str = "main_depth_texture";
 }
 
-impl RenderStage for DepthStage {
+impl RenderNode for DepthNode {
     #[inline]
-    fn render(&mut self, world: &mut SystemWorld, target: &Target, data: &mut RenderData) {
-        let settings = world.resource_mut::<RenderSettings>().unwrap().clone();
-        let instance = world.read_resource::<Instance>().unwrap();
+    fn run(
+        &mut self,
+        _world: &World,
+        resources: &Resources,
+        target: &Target,
+        data: &mut RenderData,
+    ) {
+        let settings = resources.get::<RenderSettings>().unwrap();
+        let instance = resources.get::<Instance>().unwrap();
 
         if let Some(render_texture) = data.get_mut::<RenderTexture>(Self::TEXTURE) {
             if render_texture.should_resize(target.size) {

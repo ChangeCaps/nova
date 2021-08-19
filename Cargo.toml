@@ -9,18 +9,20 @@ edition = "2018"
 members = ["crates/*"]
 
 [dependencies]
-nova-assets = { path = "crates/nova-assets" } 
+nova-assets = { path = "crates/nova-assets", features = ["editor"] } 
 nova-core = { path = "crates/nova-core" }
-nova-wgpu = { path = "crates/nova-wgpu" }
+nova-wgpu = { path = "crates/nova-wgpu" } 
 nova-derive = { path = "crates/nova-derive" }
-nova-input = { path = "crates/nova-input" }
-nova-render = { path = "crates/nova-render" }
-nova-type = { path = "crates/nova-type", features = ["serialize"] } 
-nova-scene = { path = "crates/nova-scene" }
-nova-transform = { path = "crates/nova-transform", features = ["serde"] }
+nova-input = { path = "crates/nova-input", features = ["editor"] }
+nova-render = { path = "crates/nova-render", features = ["editor"] }
+nova-transform = { path = "crates/nova-transform", features = ["editor"] }
 nova-window = { path = "crates/nova-window" }
 glam = { version = "0.17.3", features = ["bytemuck"] }
 
 [dev-dependencies]
 nova-engine = { path = "crates/nova-engine" }
 nova-3d = { path = "crates/nova-3d" }
+
+[features]
+default = ["editor"]
+editor = ["nova-core/editor"]

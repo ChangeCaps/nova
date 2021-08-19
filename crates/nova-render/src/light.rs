@@ -1,18 +1,14 @@
-use nova_core::component::Component;
-
 use crate::color::Color;
 
-#[derive(Clone, Debug, Default)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct PointLight {
     pub color: Color,
     pub intensity: f32,
 }
 
-impl Component for PointLight {}
-
-#[derive(Clone, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AmbientLight {
     pub color: Color,
     pub intensity: f32,

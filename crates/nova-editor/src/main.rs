@@ -7,21 +7,21 @@ mod main_ui;
 mod project;
 mod scenes;
 mod view;
-mod world_system;
 
 use std::path::PathBuf;
 
-use build::BuildSystem;
-use egui_system::EguiSystem;
+use build::{build_system, Builder};
+use egui_system::EguiPlugin;
 use load::Game;
-use nova_assets::Assets;
-use nova_engine::app::App;
+use nova_assets::AssetsAppExt;
+use nova_core::stage;
+use nova_engine::run;
+use nova_input::InputPlugin;
 use nova_render::render_texture::RenderTexture;
 use nova_wgpu::TextureView;
 use project::{Project, ProjectPath};
-use scenes::Scenes;
-use view::{View, ViewSystem};
-use world_system::WorldSystem;
+use scenes::{scenes_system, Scenes};
+use view::{View, ViewPlugin};
 
 use clap::{crate_authors, crate_version, Clap};
 
@@ -41,9 +41,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_module_level("winit", log::LevelFilter::Error)
         .with_module_level("naga", log::LevelFilter::Error)
         .init()?;
-
-    let mut app = App::new();
-    let mut world = app.world();
 
     let mut path = std::fs::canonicalize(opts.path).unwrap();
 
@@ -70,18 +67,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     project.write(&path)?;
 
-    world.insert_resource(project);
-    world.insert_resource(ProjectPath(path));
-    world.register_resource::<Game>();
-    world.register_resource::<Scenes>();
-    world.register_system::<ViewSystem>();
-    world.register_system::<BuildSystem>();
-    world.register_system::<WorldSystem>();
-    world.register_system::<Assets<TextureView>>();
-    world.register_system::<Assets<RenderTexture>>();
-    world.register_system::<Assets<View>>();
+    run("Nova Editor", |mut app| {
+        app.add_thread_local_to_stage(stage::PRE_UPDATE, build_system);
+        app.add_thread_local_to_stage(stage::UPDATE, scenes_system);
 
-    world.insert_system(EguiSystem::new(main_ui::main_ui));
+        app.insert_resource(project);
+        app.insert_resource(ProjectPath(path));
+        app.register_resource::<Game>();
+        app.register_resource::<Scenes>();
+        app.register_resource::<Builder>();
+        app.register_asset::<TextureView>();
+        app.register_asset::<RenderTexture>();
+        app.register_asset::<View>();
 
-    app.with_title("Nova Editor").run()
+        app.with_plugin(ViewPlugin);
+        app.with_plugin(InputPlugin);
+        app.with_plugin(EguiPlugin::new(main_ui::main_ui));
+
+        app.build()
+    })
 }

@@ -1,16 +1,17 @@
 use std::ops::{Deref, DerefMut, Mul};
 
 use glam::{Mat3, Mat4, Quat, Vec3};
-use nova_core::{component::Component, node::NodeId};
+use nova_core::Entity;
 
-#[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Parent(pub NodeId);
-
-impl Component for Parent {}
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct Parent(pub Entity);
 
 #[derive(Clone, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Children {
+    pub children: Vec<Entity>,
+}
+
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct GlobalTransform(pub Transform);
 
 impl Deref for GlobalTransform {
@@ -29,10 +30,7 @@ impl DerefMut for GlobalTransform {
     }
 }
 
-impl Component for GlobalTransform {}
-
-#[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Transform {
     pub translation: Vec3,
     pub rotation: Quat,
@@ -123,5 +121,3 @@ impl Mul<Transform> for Transform {
         self.mul_transform(&rhs)
     }
 }
-
-impl Component for Transform {}

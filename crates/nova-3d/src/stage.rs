@@ -3,19 +3,19 @@ use std::collections::HashMap;
 use bytemuck::cast_slice;
 use glam::Mat4;
 use nova_assets::{Assets, Handle};
-use nova_core::world::SystemWorld;
+use nova_core::{App, IntoQuery, Resources, World};
 use nova_render::{
-    camera_stage::CameraStage,
+    camera_node::CameraNode,
     component::MeshInstance,
-    depth_stage::DepthStage,
-    light_stage::LightStage,
+    depth_node::DepthNode,
+    light_node::LightNode,
     mesh::MeshData,
-    msaa_stage::MsaaStage,
+    msaa_node::MsaaNode,
+    render_node::{RenderData, RenderNode, Target},
     render_settings::RenderSettings,
-    render_stage::{RenderData, RenderStage, Target},
     render_texture::RenderTexture,
 };
-use nova_transform::component::{GlobalTransform, Transform};
+use nova_transform::component::GlobalTransform;
 use nova_wgpu::*;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -36,26 +36,30 @@ struct InstanceData {
 }
 
 #[derive(Default)]
-pub struct D3PassStage {
+pub struct D3PassNode {
     groups: HashMap<InstanceHandle, InstanceGroup>,
     data: HashMap<InstanceHandle, InstanceData>,
 }
 
-impl RenderStage for D3PassStage {
+impl RenderNode for D3PassNode {
     #[inline]
-    fn render(&mut self, world: &mut SystemWorld, target: &Target, render_data: &mut RenderData) {
+    fn run(
+        &mut self,
+        world: &World,
+        resources: &Resources,
+        target: &Target,
+        render_data: &mut RenderData,
+    ) {
         self.groups.clear();
 
-        let settings = world.resource_mut::<RenderSettings>().unwrap().clone();
-        let instance = world.resources.read::<Instance>().unwrap();
+        let settings = resources.get_mut::<RenderSettings>().unwrap().clone();
+        let instance = resources.get::<Instance>().unwrap();
 
-        let mut meshes = world.systems.write::<Assets<MeshData>>().unwrap();
-        let pipelines = world.systems.read::<Assets<RenderPipeline>>().unwrap();
+        let mut meshes = resources.get_mut::<Assets<MeshData>>().unwrap();
+        let pipelines = resources.get::<Assets<RenderPipeline>>().unwrap();
 
         let color_attachment = if settings.msaa > 1 {
-            let msaa_texture = render_data
-                .get::<RenderTexture>(MsaaStage::TEXTURE)
-                .unwrap();
+            let msaa_texture = render_data.get::<RenderTexture>(MsaaNode::TEXTURE).unwrap();
 
             RenderPassColorAttachment {
                 view: &msaa_texture.view,
@@ -77,7 +81,7 @@ impl RenderStage for D3PassStage {
         };
 
         let depth_texture = render_data
-            .get::<RenderTexture>(DepthStage::TEXTURE)
+            .get::<RenderTexture>(DepthNode::TEXTURE)
             .unwrap();
 
         let mut encoder = instance.create_command_encoder(&CommandEncoderDescriptor {
@@ -97,25 +101,19 @@ impl RenderStage for D3PassStage {
             }),
         });
 
-        for node in world.nodes.values_mut() {
-            if let Some(mesh_instance) = node.component_mut::<MeshInstance>() {
-                let handle = InstanceHandle {
-                    pipeline: mesh_instance.pipeline.clone(),
-                    mesh_data: mesh_instance.mesh_data.clone(),
-                };
+        for (mesh_instance, global_transform) in
+            <(&MeshInstance, &GlobalTransform)>::query().iter(world)
+        {
+            let handle = InstanceHandle {
+                pipeline: mesh_instance.pipeline.clone(),
+                mesh_data: mesh_instance.mesh_data.clone(),
+            };
 
-                let transform = if let Some(transform) = node.component_mut::<GlobalTransform>() {
-                    transform.matrix()
-                } else {
-                    Transform::IDENTITY.matrix()
-                };
-
-                self.groups
-                    .entry(handle)
-                    .or_default()
-                    .transform
-                    .push(transform);
-            }
+            self.groups
+                .entry(handle)
+                .or_default()
+                .transform
+                .push(global_transform.matrix());
         }
 
         for (handle, group) in &self.groups {
@@ -197,7 +195,7 @@ impl RenderStage for D3PassStage {
                         BindGroupEntry {
                             binding: 0,
                             resource: BindingResource::Buffer(BufferBinding {
-                                buffer: render_data.get::<Buffer>(CameraStage::BUFFER).unwrap(),
+                                buffer: render_data.get::<Buffer>(CameraNode::BUFFER).unwrap(),
                                 offset: 0,
                                 size: None,
                             }),
@@ -205,7 +203,7 @@ impl RenderStage for D3PassStage {
                         BindGroupEntry {
                             binding: 1,
                             resource: BindingResource::Buffer(BufferBinding {
-                                buffer: render_data.get::<Buffer>(LightStage::BUFFER).unwrap(),
+                                buffer: render_data.get::<Buffer>(LightNode::BUFFER).unwrap(),
                                 offset: 0,
                                 size: None,
                             }),

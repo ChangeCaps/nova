@@ -1,31 +1,16 @@
 use glam::Mat4;
-use nova_core::{
-    component::Component,
-    node::{Node, NodeId},
-    system::System,
-    world::ComponentWorld,
-};
+use nova_core::Entity;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default)]
-pub struct CameraSystem {
-    pub main: Option<NodeId>,
+pub struct Cameras {
+    pub main: Option<Entity>,
 }
 
-impl System for CameraSystem {}
-
-#[derive(Clone, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MainCamera;
 
-impl Component for MainCamera {
-    #[inline]
-    fn init(&mut self, node: &Node, world: &mut ComponentWorld) {
-        world.system_mut::<CameraSystem>().unwrap().main = Some(node.id());
-    }
-}
-
-#[derive(Clone, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Camera {
     Perspective {
         fov: f32,
@@ -70,5 +55,3 @@ impl Camera {
         }
     }
 }
-
-impl Component for Camera {}

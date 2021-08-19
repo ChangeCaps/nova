@@ -1,5 +1,5 @@
-use crate::world::World;
+use crate::AppBuilder;
 
 pub trait Plugin {
-    fn build(self, world: &mut World);
+    fn build(self, app: &mut AppBuilder);
 }

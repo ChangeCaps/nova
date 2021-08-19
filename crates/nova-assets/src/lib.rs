@@ -1,4 +1,5 @@
 use std::{
+    any::type_name,
     collections::HashMap,
     hash::Hash,
     marker::PhantomData,
@@ -6,10 +7,10 @@ use std::{
     sync::Arc,
 };
 
-use nova_core::{system::System, world::SystemWorld};
+use nova_core::{app::AppBuilder, stage, systems::Runnable, SystemBuilder};
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum InnerHandle {
     Id(u64),
     Path(PathBuf),
@@ -102,7 +103,6 @@ impl<T> Ord for Handle<T> {
     }
 }
 
-#[cfg(feature = "serde")]
 impl<T> serde::Serialize for Handle<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -112,7 +112,6 @@ impl<T> serde::Serialize for Handle<T> {
     }
 }
 
-#[cfg(feature = "serde")]
 impl<'de, T> serde::Deserialize<'de> for Handle<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -269,9 +268,24 @@ impl<T: 'static> Assets<T> {
     }
 }
 
-impl<T: Send + Sync + 'static> System for Assets<T> {
-    #[inline]
-    fn post_update(&mut self, _world: &mut SystemWorld) {
-        self.clean()
+pub fn asset_system<T: Send + Sync + 'static>() -> impl Runnable {
+    SystemBuilder::new(format!("asset_system<{}>", type_name::<T>()))
+        .write_resource::<Assets<T>>()
+        .build(|_commands, _world, assets, _queries| assets.clean())
+}
+
+pub trait AssetsAppExt {
+    fn register_asset<T: Send + Sync + 'static>(&mut self) -> &mut Self;
+}
+
+impl AssetsAppExt for AppBuilder {
+    fn register_asset<T: Send + Sync + 'static>(&mut self) -> &mut Self {
+        self.register_resource::<Assets<T>>();
+        self.add_system_to_stage(stage::POST_UPDATE, asset_system::<T>());
+
+        #[cfg(feature = "editor")]
+        self.add_editor_system_to_stage(stage::POST_UPDATE, asset_system::<T>());
+
+        self
     }
 }

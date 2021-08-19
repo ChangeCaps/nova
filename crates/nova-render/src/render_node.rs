@@ -1,13 +1,13 @@
 use std::{any::Any, collections::BTreeMap};
 
 use glam::UVec2;
-use nova_core::world::SystemWorld;
+use nova_core::{Resources, World};
 use nova_wgpu::{TextureFormat, TextureView};
 
 #[allow(unused)]
-pub trait RenderStage: Send + Sync + 'static {
+pub trait RenderNode: Send + Sync + 'static {
     #[inline]
-    fn render(&mut self, world: &mut SystemWorld, target: &Target, data: &mut RenderData);
+    fn run(&mut self, world: &World, resources: &Resources, target: &Target, data: &mut RenderData);
 }
 
 pub struct Target<'a> {
