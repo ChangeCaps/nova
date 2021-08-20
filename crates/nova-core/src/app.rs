@@ -172,7 +172,7 @@ impl AppBuilder {
     ) -> &mut Self {
         self.startup.thread_locals.push(Box::new(f));
 
-        self 
+        self
     }
 
     #[inline]

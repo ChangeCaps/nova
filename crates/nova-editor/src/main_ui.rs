@@ -298,7 +298,10 @@ pub fn main_panel_ui(ctx: &CtxRef, world: &World, resources: &Resources) {
         let view = views.get(&PRIMARY_VIEW).unwrap();
 
         let image_size = ui.available_size();
-        let size = UVec2::new(image_size.x.ceil() as u32, image_size.y.ceil() as u32);
+        let size = UVec2::new(
+            (image_size.x.ceil() as u32).max(1),
+            (image_size.y.ceil() as u32).max(1),
+        );
 
         let texture = render_textures.get_mut(&view.texture).unwrap();
         if texture.should_resize(size) {
@@ -312,6 +315,6 @@ pub fn main_panel_ui(ctx: &CtxRef, world: &World, resources: &Resources) {
         ui.image(
             TextureId::User(view.texture.clone().unwrap_id()),
             image_size,
-        );
+        ); 
     });
 }
