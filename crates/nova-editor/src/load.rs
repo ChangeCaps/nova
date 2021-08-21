@@ -1,12 +1,17 @@
 use libloading::{Error, Library, Symbol};
+use nova_assets::Assets;
 use nova_core::{App, AppBuilder, Resources, World};
 use nova_render::{
     render_node::Target, render_target::RenderTarget, render_texture::RenderTexture,
 };
 use nova_wgpu::Instance;
+use serde::__private::de::InPlaceSeed;
 use std::path::Path;
 
-use crate::view::ViewType;
+use crate::{
+    scenes::SceneInstance,
+    view::{View, ViewType, PRIMARY_VIEW},
+};
 
 pub struct LoadedGame {
     library: Library,
@@ -67,6 +72,48 @@ impl Game {
             log::info!("unloading game lib");
             self.loaded = None;
         }
+    }
+
+    #[inline]
+    pub unsafe fn load_scene(
+        &self,
+        instance: &Instance,
+        views: &Assets<View>,
+        textures: &Assets<RenderTexture>,
+        path: &Path,
+    ) -> Result<SceneInstance, String> {
+        let app = AppBuilder::new();
+
+        let view = views.get(&PRIMARY_VIEW).unwrap();
+        let texture = textures.get(&view.texture).unwrap();
+
+        let target = RenderTarget::Texture {
+            view: texture.texture.view(),
+            desc: texture.desc.clone(),
+        };
+
+        let res = unsafe {
+            self.loaded
+                .as_ref()
+                .ok_or_else(|| "game lib not loaded")?
+                .init(app, instance.clone(), target)
+        };
+
+        let app = match res {
+            Ok(app) => app,
+            Err(err) => {
+                return Err(format!("failed to init app: {}", err));
+            }
+        };
+
+        let scene_instance = match SceneInstance::load(app, &path) {
+            Ok(scene) => scene,
+            Err(err) => {
+                return Err(format!("failed to load scene: {}", err));
+            }
+        };
+
+        Ok(scene_instance)
     }
 }
 

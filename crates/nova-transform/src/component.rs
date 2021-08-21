@@ -2,6 +2,7 @@ use std::ops::{Deref, DerefMut, Mul};
 
 use glam::{Mat3, Mat4, Quat, Vec3};
 use nova_core::Entity;
+use nova_inspect::Inspectable;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Parent(pub Entity);
@@ -11,7 +12,7 @@ pub struct Children {
     pub children: Vec<Entity>,
 }
 
-#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, Inspectable)]
 pub struct GlobalTransform(pub Transform);
 
 impl Deref for GlobalTransform {
@@ -30,7 +31,7 @@ impl DerefMut for GlobalTransform {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Inspectable)]
 pub struct Transform {
     pub translation: Vec3,
     pub rotation: Quat,

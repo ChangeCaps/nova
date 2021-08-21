@@ -13,6 +13,7 @@ use std::path::PathBuf;
 use build::{build_system, Builder};
 use egui_system::EguiPlugin;
 use load::Game;
+use main_ui::SelectedEntity;
 use nova_assets::AssetsAppExt;
 use nova_core::stage;
 use nova_engine::run;
@@ -76,6 +77,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         app.register_resource::<Game>();
         app.register_resource::<Scenes>();
         app.register_resource::<Builder>();
+        app.register_resource::<SelectedEntity>();
         app.register_asset::<TextureView>();
         app.register_asset::<RenderTexture>();
         app.register_asset::<View>();

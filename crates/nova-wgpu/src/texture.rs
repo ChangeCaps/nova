@@ -1,11 +1,12 @@
-use std::any::Any;
+use std::{any::Any, fmt::Debug, sync::Arc};
 
-pub trait TextureTrait: Send + Sync {
+pub trait TextureTrait: Debug + Send + Sync {
     fn view(&self) -> TextureView<'static>;
 
     fn any(&self) -> &dyn Any;
 }
 
+#[derive(Debug)]
 pub struct Texture(pub(crate) Box<dyn TextureTrait>);
 
 impl Texture {
@@ -41,14 +42,16 @@ impl SwapChainTexture {
     }
 }
 
+#[derive(Clone)]
 pub enum TextureView<'a> {
-    Owned(Box<dyn Any + Send + Sync>),
+    Owned(Arc<dyn Any + Send + Sync>),
     Borrowed(&'a (dyn Any + Send + Sync)),
 }
 
 impl<'a> TextureView<'a> {
     #[inline]
-    pub fn any(&'a self) -> &'a dyn Any {
+    #[allow(unused)]
+    pub(crate) fn any(&'a self) -> &'a dyn Any {
         match self {
             TextureView::Owned(any) => any.as_ref(),
             TextureView::Borrowed(any) => *any,

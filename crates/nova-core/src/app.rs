@@ -45,10 +45,17 @@ pub struct App {
         &mut dyn Deserializer,
     ) -> Result<(), Box<dyn std::error::Error>>,
     pub unload: fn(Self),
+    #[cfg(feature = "editor")]
+    pub inspect_world: fn(&World, &mut Option<legion::Entity>, &mut egui::Ui),
+    #[cfg(feature = "editor")]
+    pub inspect_entity:
+        fn(&mut World, &crate::inspectables::Inspectables, &legion::Entity, &mut egui::Ui),
     pub startup_schedule: Schedule,
     pub schedule: Schedule,
     #[cfg(feature = "editor")]
     pub editor_schedule: Schedule,
+    #[cfg(feature = "editor")]
+    pub inspectables: crate::inspectables::Inspectables,
 }
 
 pub fn update(schedule: &mut Schedule, world: &mut World, resources: &mut Resources) {
@@ -87,6 +94,30 @@ pub fn unload(app: App) {
     drop(app);
 }
 
+#[cfg(feature = "editor")]
+pub fn inspect_world(world: &World, selected: &mut Option<legion::Entity>, ui: &mut egui::Ui) {
+    use legion::{Entity, IntoQuery};
+
+    for entity in Entity::query().iter(world) {
+        let name = if let Ok(name) = <&String>::query().get(world, *entity) {
+            name
+        } else {
+            "<unnamed>"
+        };
+
+        ui.selectable_value(selected, Some(*entity), name);
+    }
+}
+
+#[cfg(feature = "editor")]
+pub fn inspect_entity(
+    world: &mut World,
+    inspectables: &crate::inspectables::Inspectables,
+    entity: &legion::Entity,
+    ui: &mut egui::Ui,
+) {
+} 
+
 #[derive(Default)]
 pub struct AppBuilder {
     pub world: World,
@@ -99,6 +130,8 @@ pub struct AppBuilder {
     pub editor_order: Vec<&'static str>,
     #[cfg(feature = "editor")]
     pub editor_stages: HashMap<&'static str, Stage>,
+    #[cfg(feature = "editor")]
+    pub inspectables: crate::inspectables::Inspectables,
 }
 
 impl AppBuilder {
@@ -115,6 +148,8 @@ impl AppBuilder {
             editor_order: Vec::new(),
             #[cfg(feature = "editor")]
             editor_stages: HashMap::new(),
+            #[cfg(feature = "editor")]
+            inspectables: Default::default(),
         };
 
         app_builder
@@ -138,6 +173,14 @@ impl AppBuilder {
     #[inline]
     pub fn register_component<T: Component + Serialize + DeserializeOwned>(&mut self) -> &mut Self {
         self.registry.register::<T>(String::from(type_name::<T>()));
+
+        self
+    }
+
+    #[inline]
+    #[cfg(feature = "editor")]
+    pub fn register_inspectable<T: nova_inspect::Inspectable + Component>(&mut self) -> &mut Self {
+        self.inspectables.register::<T>();
 
         self
     }
@@ -352,10 +395,16 @@ impl AppBuilder {
             serialize,
             deserialize,
             unload,
+            #[cfg(feature = "editor")]
+            inspect_world,
+            #[cfg(feature = "editor")]
+            inspect_entity,
             startup_schedule: startup_schedule.build(),
             schedule: schedule.build(),
             #[cfg(feature = "editor")]
             editor_schedule: editor_schedule.build(),
+            #[cfg(feature = "editor")]
+            inspectables: self.inspectables,
         }
     }
 }

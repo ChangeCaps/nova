@@ -11,7 +11,9 @@ legion = "0.4"
 serde = "1.0"
 erased-serde = "0.3"
 atomic_refcell = "0.1"
+nova-inspect = { path = "../nova-inspect", optional = true }
+egui = { version = "0.13", optional = true }
 
 [features]
 default = []
-editor = []
+editor = ["egui", "nova-inspect"]

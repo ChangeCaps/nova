@@ -1,12 +1,15 @@
 pub use nova_core as core;
+#[doc(hidden)]
+pub use nova_inspect;
 
 pub mod prelude {
     pub use crate::export_app;
     pub use glam::{swizzles::*, *};
     pub use nova_assets::{Assets, Handle};
     pub use nova_core::*;
-    pub use nova_derive::Vertex;
+    pub use nova_derive::{Inspectable, Vertex};
     pub use nova_input::{key::Key, mouse_button::MouseButton, Input, InputPlugin};
+    pub use nova_inspect::*;
     pub use nova_render::{
         camera::{Camera, Cameras, MainCamera},
         color::Color,

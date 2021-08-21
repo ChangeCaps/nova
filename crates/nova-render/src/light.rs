@@ -1,14 +1,15 @@
 use crate::color::Color;
 
+use nova_inspect::Inspectable;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, Inspectable)]
 pub struct PointLight {
     pub color: Color,
     pub intensity: f32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Inspectable)]
 pub struct AmbientLight {
     pub color: Color,
     pub intensity: f32,

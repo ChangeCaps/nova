@@ -1,5 +1,6 @@
 use glam::Mat4;
 use nova_core::Entity;
+use nova_inspect::Inspectable;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default)]
@@ -7,10 +8,10 @@ pub struct Cameras {
     pub main: Option<Entity>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Inspectable)]
 pub struct MainCamera;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Inspectable)]
 pub enum Camera {
     Perspective {
         fov: f32,
@@ -25,7 +26,6 @@ pub enum Camera {
         near: f32,
         far: f32,
     },
-    Custom(Mat4),
 }
 
 impl Camera {
@@ -51,7 +51,6 @@ impl Camera {
                 near,
                 far,
             } => Mat4::orthographic_rh(*left, *right, *bottom, *top, *near, *far),
-            Self::Custom(mat) => *mat,
         }
     }
 }

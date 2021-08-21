@@ -17,6 +17,7 @@ nova-input = { path = "crates/nova-input", features = ["editor"] }
 nova-render = { path = "crates/nova-render", features = ["editor"] }
 nova-transform = { path = "crates/nova-transform", features = ["editor"] }
 nova-window = { path = "crates/nova-window" }
+nova-inspect = { path = "crates/nova-inspect" }
 glam = { version = "0.17.3", features = ["bytemuck"] }
 
 [dev-dependencies]

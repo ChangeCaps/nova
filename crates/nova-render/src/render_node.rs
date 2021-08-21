@@ -12,6 +12,7 @@ pub trait RenderNode: Send + Sync + 'static {
 
 pub struct Target<'a> {
     pub view: &'a TextureView<'a>,
+    pub depth: Option<TextureView<'static>>,
     pub size: UVec2,
     pub format: TextureFormat,
 }

@@ -7,7 +7,6 @@ use std::{
 
 use erased_serde::Deserializer;
 use nova_core::{serialize::Canon, App, Resources, World};
-use serde::de::DeserializeSeed;
 
 pub fn scenes_system(_world: &mut World, resources: &mut Resources) {
     let mut scenes = resources.get_mut::<Scenes>().unwrap();

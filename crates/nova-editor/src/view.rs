@@ -55,6 +55,7 @@ pub fn render_view_system(_world: &mut World, resources: &mut Resources) {
 
                 let target = Target {
                     view: &render_texture.view,
+                    depth: None,
                     format: render_texture.desc.format,
                     size: render_texture.size(),
                 };

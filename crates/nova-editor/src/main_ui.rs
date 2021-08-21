@@ -1,10 +1,13 @@
-use std::{mem::ManuallyDrop, path::Path};
+use std::{
+    mem::ManuallyDrop,
+    path::{Path, PathBuf},
+};
 
 use egui::*;
 use erased_serde::Serializer;
 use glam::UVec2;
 use nova_assets::Assets;
-use nova_core::{AppBuilder, Resources, World};
+use nova_core::{AppBuilder, Entity, Resources, World};
 use nova_render::{render_target::RenderTarget, render_texture::RenderTexture};
 use nova_wgpu::{Instance, TextureView};
 
@@ -15,6 +18,9 @@ use crate::{
     scenes::{SceneInstance, Scenes},
     view::{View, PRIMARY_VIEW},
 };
+
+#[derive(Default)]
+pub struct SelectedEntity(pub Option<Entity>);
 
 fn save(_world: &World, resources: &Resources) -> Result<(), Box<dyn std::error::Error>> {
     let builder = resources.get::<Builder>().unwrap();
@@ -48,9 +54,10 @@ pub fn main_ui(ctx: &CtxRef, world: &World, resources: &Resources) {
     scene_panel_ui(ctx, world, resources);
     main_panel_ui(ctx, world, resources);
 
+    let running = resources.get::<Scenes>().unwrap().running;
     let input = ctx.input();
 
-    if input.modifiers.ctrl && input.key_pressed(Key::S) {
+    if input.modifiers.ctrl && input.key_pressed(Key::S) && !running {
         if let Err(e) = save(world, resources) {
             log::error!("failed to save: {}", e);
         }
@@ -104,7 +111,7 @@ pub fn top_panel_ui(ctx: &CtxRef, world: &World, resources: &Resources) {
             let mut scenes_ref = resources.get_mut::<Scenes>().unwrap();
             let scenes = &mut *scenes_ref;
 
-            if let Some(path) = &scenes.open {
+            if let Some(path) = scenes.open.clone() {
                 let run = ui
                     .add(Button::new("Run").enabled(!scenes.running))
                     .clicked();
@@ -120,64 +127,40 @@ pub fn top_panel_ui(ctx: &CtxRef, world: &World, resources: &Resources) {
                 if stop {
                     scenes.running = false;
 
-                    let app = AppBuilder::new();
-
                     let game = resources.get::<Game>().unwrap();
                     let instance = resources.get::<Instance>().unwrap();
                     let views = resources.get::<Assets<View>>().unwrap();
                     let textures = resources.get::<Assets<RenderTexture>>().unwrap();
 
-                    let view = views.get(&PRIMARY_VIEW).unwrap();
-                    let texture = textures.get(&view.texture).unwrap();
-
-                    let target = RenderTarget::Texture {
-                        view: texture.texture.view(),
-                        desc: texture.desc.clone(),
-                    };
-
-                    let res = unsafe {
-                        game.loaded
-                            .as_ref()
-                            .unwrap()
-                            .init(app, instance.clone(), target)
-                    };
-
-                    let app = match res {
-                        Ok(app) => app,
+                    match unsafe { game.load_scene(&instance, &views, &textures, &path) } {
+                        Ok(loaded_scene) => {
+                            scenes
+                                .instances
+                                .insert(path.clone(), ManuallyDrop::new(loaded_scene));
+                        }
                         Err(err) => {
-                            log::error!("failed to init App: {}", err);
-                            return;
+                            log::error!("{}", err);
                         }
                     };
-
-                    let scene_instance = match SceneInstance::load(app, path) {
-                        Ok(scene) => scene,
-                        Err(err) => {
-                            log::error!("failed to load scene: {}", err);
-                            return;
-                        }
-                    };
-
-                    scenes
-                        .instances
-                        .insert(path.clone(), ManuallyDrop::new(scene_instance));
                 }
 
                 if run {
-                    let scene = &mut **scenes.instances.get_mut(path).unwrap();
-
-                    (scene.app.update)(
-                        &mut scene.app.startup_schedule,
-                        &mut scene.app.world,
-                        &mut scene.app.resources,
-                    );
-
                     drop(scenes_ref);
                     drop(builder);
 
                     if let Err(err) = save(world, resources) {
                         log::error!("failed saving scene: {}", err);
                     }
+
+                    let mut scenes = resources.get_mut::<Scenes>().unwrap();
+
+                    let scene = &mut **scenes.instances.get_mut(&path).unwrap();
+
+                    (scene.app.update)(
+                        &mut scene.app.startup_schedule,
+                        &mut scene.app.world,
+                        &mut scene.app.resources,
+                    );
                 }
             }
         });
@@ -189,7 +172,8 @@ fn show_dir_ui(
     world: &World,
     resources: &Resources,
     ui: &mut Ui,
-) -> Result<(), std::io::Error> {
+) -> Result<Option<PathBuf>, std::io::Error> {
+    let mut clicked = None;
     let mut dirs = Vec::new();
     let mut files = Vec::new();
 
@@ -213,15 +197,19 @@ fn show_dir_ui(
         let ret = ui.collapsing(name, |ui| show_dir_ui(&path, world, resources, ui));
 
         if let Some(ret) = ret.body_returned {
-            ret?;
+            if let Some(path) = ret? {
+                clicked = Some(path);
+            }
         }
     }
 
-    for (name, _path) in files {
-        ui.add(Label::new(name).sense(Sense::click()));
+    for (name, path) in files {
+        if ui.add(Label::new(name).sense(Sense::click())).clicked() {
+            clicked = Some(path);
+        }
     }
 
-    Ok(())
+    Ok(clicked)
 }
 
 pub fn left_panel_ui(ctx: &CtxRef, world: &World, resources: &Resources) {
@@ -230,6 +218,8 @@ pub fn left_panel_ui(ctx: &CtxRef, world: &World, resources: &Resources) {
         .show(ctx, |ui| {
             let project_path = resources.get::<ProjectPath>().unwrap();
             let mut project = resources.get_mut::<Project>().unwrap();
+            let scenes = &mut *resources.get_mut::<Scenes>().unwrap();
+            let selected_entity = &mut *resources.get_mut::<SelectedEntity>().unwrap();
 
             if !project.update(&project_path.0) {
                 return;
@@ -239,14 +229,45 @@ pub fn left_panel_ui(ctx: &CtxRef, world: &World, resources: &Resources) {
 
             ui.label(&project.package.name);
 
+            if let Some(open) = &scenes.open {
+                ui.separator();
+
+                let scene = &**scenes.instances.get(open).unwrap();
+
+                (scene.app.inspect_world)(&scene.app.world, &mut selected_entity.0, ui);
+            }
+
             ui.separator();
 
             let res = ScrollArea::auto_sized().show(ui, |ui| {
                 show_dir_ui(&project_path.dir(), world, resources, ui)
             });
 
-            if let Err(e) = res {
-                log::error!("error showing files: {}", e);
+            match res {
+                Ok(Some(path)) => match path.extension().map(|ext| ext.to_str().unwrap()) {
+                    Some("scn") => {
+                        if !scenes.instances.contains_key(&path) {
+                            let game = resources.get::<Game>().unwrap();
+                            let instance = resources.get::<Instance>().unwrap();
+                            let views = resources.get::<Assets<View>>().unwrap();
+                            let textures = resources.get::<Assets<RenderTexture>>().unwrap();
+
+                            match unsafe { game.load_scene(&instance, &views, &textures, &path) } {
+                                Ok(loaded_scene) => {
+                                    scenes
+                                        .instances
+                                        .insert(path.clone(), ManuallyDrop::new(loaded_scene));
+                                }
+                                Err(err) => {
+                                    log::error!("{}", err);
+                                }
+                            };
+                        }
+                    }
+                    _ => {}
+                },
+                Err(err) => log::error!("error showing files: {}", err),
+                _ => {}
             }
         });
 }
@@ -255,6 +276,8 @@ pub fn right_panel_ui(ctx: &CtxRef, world: &World, resources: &Resources) {
     SidePanel::right("right_panel")
         .resizable(true)
         .show(ctx, |ui| {
+            ui.label("Inspector");
+
             ui.separator();
         });
 }
@@ -263,6 +286,10 @@ pub fn bottom_panel_ui(ctx: &CtxRef, world: &World, resources: &Resources) {
     TopBottomPanel::bottom("bottom_panel")
         .resizable(true)
         .show(ctx, |ui| {
+            ui.label("Assets");
+
+            ui.horizontal(|ui| {});
+
             ui.separator();
         });
 }
@@ -271,6 +298,7 @@ pub fn scene_panel_ui(ctx: &CtxRef, world: &World, resources: &Resources) {
     let mut scenes = resources.get_mut::<Scenes>().unwrap();
 
     let scenes = &mut *scenes;
+    let running = scenes.running;
     let open = if let Some(open) = &mut scenes.open {
         open
     } else {
@@ -281,11 +309,17 @@ pub fn scene_panel_ui(ctx: &CtxRef, world: &World, resources: &Resources) {
     TopBottomPanel::top("scene_panel").show(ctx, |ui| {
         ui.horizontal(|ui| {
             for scene in paths {
-                ui.selectable_value(
-                    open,
-                    scene.clone(),
-                    scene.file_name().unwrap().to_str().unwrap(),
-                );
+                let name = scene.file_name().unwrap().to_str().unwrap();
+
+                if running {
+                    ui.label(name);
+                } else {
+                    let response = ui.selectable_value(open, scene.clone(), name);
+
+                    if response.changed() {
+                        resources.get_mut::<SelectedEntity>().unwrap().0 = None;
+                    }
+                }
             }
         });
     });
@@ -315,6 +349,6 @@ pub fn main_panel_ui(ctx: &CtxRef, world: &World, resources: &Resources) {
         ui.image(
             TextureId::User(view.texture.clone().unwrap_id()),
             image_size,
-        ); 
+        );
     });
 }

@@ -94,6 +94,7 @@ pub fn run(title: &str, func: impl FnOnce(AppBuilder) -> App) -> ! {
 
                 let target = Target {
                     view: &frame.output.view(),
+                    depth: None,
                     size: swap_chain.size().into(),
                     format: swap_chain.format(),
                 };

@@ -1,4 +1,8 @@
-#[derive(Clone, Copy, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+use nova_inspect::Inspectable;
+
+#[derive(
+    Clone, Copy, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize, Inspectable,
+)]
 pub struct Color {
     pub r: f32,
     pub g: f32,

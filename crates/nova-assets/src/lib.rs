@@ -8,9 +8,12 @@ use std::{
 };
 
 use nova_core::{app::AppBuilder, stage, systems::Runnable, SystemBuilder};
+use nova_inspect::Inspectable;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Inspectable,
+)]
 pub enum InnerHandle {
     Id(u64),
     Path(PathBuf),
@@ -118,6 +121,18 @@ impl<'de, T> serde::Deserialize<'de> for Handle<T> {
         D: serde::Deserializer<'de>,
     {
         Ok(Handle::from_inner(InnerHandle::deserialize(deserializer)?))
+    }
+}
+
+impl<T> Inspectable for Handle<T> {
+    #[inline]
+    fn name(&self) -> &'static str {
+        "Handle"
+    }
+
+    #[inline]
+    fn inspect(&mut self, ui: &mut nova_inspect::egui::Ui) -> Option<nova_inspect::egui::Response> {
+        self.inner.inspect(ui)
     }
 }
 

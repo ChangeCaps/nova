@@ -9,6 +9,7 @@ edition = "2018"
 glam = { version = "0.17", features = ["serde"] }
 nova-core = { path = "../nova-core" } 
 serde = { version = "1.0", features = ["derive"] }
+nova-inspect = { path = "../nova-inspect" }
 
 [features]
 default = []
